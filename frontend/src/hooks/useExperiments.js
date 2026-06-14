@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
-import { getExperiments, simulateExperiment } from '../services/experiments.service';
+import { getExperiments, simulateExperiment, createExperiment } from '../services/experiments.service';
 export function useExperiments() {
     const [localExperiments, setLocalExperiments] = useState([]);
     const [activePreview, setActivePreview] = useState(null);
@@ -23,7 +23,16 @@ export function useExperiments() {
             setActivePreview(previewData);
         },
     });
-    const createExperiment = (newExp) => {
+    // Launch/Create Experiment Mutation
+    const createMutation = useMutation({
+        mutationFn: async (newExp) => {
+            return createExperiment(newExp);
+        },
+        onSuccess: (savedExp) => {
+            setLocalExperiments((prev) => [savedExp, ...prev]);
+        }
+    });
+    const handleCreateExperiment = (newExp) => {
         const experiment = {
             ...newExp,
             id: `exp_${Date.now()}`,
@@ -31,7 +40,7 @@ export function useExperiments() {
             createdAt: new Date().toISOString(),
             simulationPreview: activePreview || undefined,
         };
-        setLocalExperiments((prev) => [experiment, ...prev]);
+        createMutation.mutate(experiment);
         // Clear active preview after saving
         setActivePreview(null);
     };
@@ -48,7 +57,7 @@ export function useExperiments() {
         isSimulateError: simulateMutation.isError,
         simulateError: simulateMutation.error,
         runSimulation: handleSimulate,
-        createExperiment,
+        createExperiment: handleCreateExperiment,
         clearPreview: () => setActivePreview(null),
     };
 }

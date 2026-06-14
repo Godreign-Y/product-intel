@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 
-from src.api.routers import forecast, explanation, scenario, optimization, analysis, analytics, sensitivity, agent
+from src.api.routers import forecast, explanation, scenario, optimization, analysis, analytics, sensitivity, agent, db_state
 from src.api.dependencies import load_app_state
 from src.utils.logger import setup_logger
 
@@ -53,3 +53,4 @@ app.include_router(analysis.router, prefix="/api/v1")
 app.include_router(analytics.router, prefix="/api/v1")
 app.include_router(sensitivity.router, prefix="/api/v1")
 app.include_router(agent.router, prefix="/api/v1")
+app.include_router(db_state.router, prefix="/api/v1")

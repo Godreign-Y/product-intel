@@ -90,8 +90,9 @@ export default function PredictionsPage() {
               <option value="revenue">Revenue</option>
               <option value="orders">Orders</option>
               <option value="conversionRate">Conversion Rate</option>
-              <option value="aov">Average Order Value</option>
+              {/* <option value="aov">Average Order Value</option> */}
               <option value="profit">Profit</option>
+              <option value="retentionRate">Retention Rate</option>
             </select>
           </div>
           <div className="w-px h-4 bg-[#E5E7EB]" />
@@ -148,16 +149,20 @@ export default function PredictionsPage() {
           <div className="lg:col-span-2 space-y-3">
             <h4 className="text-xs font-bold text-[#111827] uppercase tracking-wider">Prediction Drivers & Causality</h4>
             <p className="text-xs text-[#6B7280] leading-relaxed">
-              The model projections are driven primarily by a sustained increase in organic referral velocities and the simulated positive outcome of checkout page updates. Seasonal Q3 adjustment indices have been factored at 1.04x baseline.
+              {data.explanationText || "The model projections are driven primarily by a sustained increase in organic referral velocities and the simulated positive outcome of checkout page updates. Seasonal Q3 adjustment indices have been factored at 1.04x baseline."}
             </p>
-            <div className="bg-slate-50 p-3 rounded-xl border border-slate-100">
-              <span className="text-[10px] font-bold text-[#111827] block mb-1">Causal Factors Weighting:</span>
-              <ul className="text-[11px] text-[#6B7280] list-disc list-inside space-y-1">
-                <li>Organic traffic coefficient: <strong className="text-[#111827]">+0.42</strong></li>
-                <li>Checkout step reductions: <strong className="text-[#111827]">+0.28</strong></li>
-                <li>Inflation/AOV adjustments: <strong className="text-[#111827]">-0.11</strong></li>
-              </ul>
-            </div>
+            {data.shapDrivers && data.shapDrivers.length > 0 && (
+              <div className="bg-slate-50 p-3 rounded-xl border border-slate-100">
+                <span className="text-[10px] font-bold text-[#111827] block mb-1">Causal Factors Weighting:</span>
+                <ul className="text-[11px] text-[#6B7280] list-disc list-inside space-y-1">
+                  {data.shapDrivers.map((driver, idx) => (
+                    <li key={idx}>
+                      {driver.name}: <strong className="text-[#111827]">{driver.weight >= 0 ? '+' : ''}{driver.weight.toFixed(4)}</strong>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
           </div>
 
           {/* Top factors / confidence score list */}
@@ -167,22 +172,22 @@ export default function PredictionsPage() {
               <div className="space-y-2.5">
                 <div className="flex justify-between items-center text-xs">
                   <span className="text-[#6B7280] font-semibold">Model Confidence</span>
-                  <span className="font-extrabold text-[#7C3AED]">95.4%</span>
+                  <span className="font-extrabold text-[#7C3AED]">{data.accuracyIndicators?.confidence || "95.4%"}</span>
                 </div>
                 <div className="flex justify-between items-center text-xs">
                   <span className="text-[#6B7280] font-semibold">Mean Absolute Error (MAE)</span>
-                  <span className="font-extrabold text-[#111827]">2.41%</span>
+                  <span className="font-extrabold text-[#111827]">{data.accuracyIndicators?.mae || "2.41%"}</span>
                 </div>
                 <div className="flex justify-between items-center text-xs">
                   <span className="text-[#6B7280] font-semibold">Training Horizon</span>
-                  <span className="font-extrabold text-[#111827]">18 Months</span>
+                  <span className="font-extrabold text-[#111827]">{data.accuracyIndicators?.horizon || "18 Months"}</span>
                 </div>
               </div>
             </div>
 
             <div className="mt-4 pt-3 border-t border-slate-50 flex items-center gap-1.5 text-[10px] text-[#9CA3AF] font-semibold">
               <Info className="w-3.5 h-3.5 text-[#7C3AED]" />
-              <span>Calculated using ARIMA + LSTM Hybrid Models.</span>
+              <span>Calculated using LightGBM Causal Models.</span>
             </div>
           </div>
         </div>

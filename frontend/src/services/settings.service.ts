@@ -19,7 +19,7 @@ export async function testFastApiConnection(url: string, apiKey: string): Promis
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 5000);
     
-    const response = await fetch(`${baseUrl}/api/health`, {
+    const response = await fetch(`${baseUrl}/health`, {
       signal: controller.signal,
       headers: {
         'Authorization': `Bearer ${apiKey}`,

@@ -174,5 +174,5 @@ if __name__ == "__main__":
         data_path="temporal_dataset.csv",
         models_dir="models",
         preprocessor_path="models/preprocessor.joblib",
-        fast_mode=False
+        fast_mode=True
     )

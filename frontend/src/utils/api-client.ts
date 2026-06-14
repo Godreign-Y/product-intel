@@ -27,27 +27,39 @@ export function saveSystemSettings(settings: SystemSettings) {
 
 export const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
-export async function request<T>(endpoint: string, mockData: T): Promise<T> {
+export async function request<T>(
+  endpoint: string,
+  mockData: T,
+  options?: RequestInit
+): Promise<T> {
   const settings = getSystemSettings();
   await delay(settings.mockDelay || 800);
 
   if (settings.enableFastApi) {
     const baseUrl = settings.fastapiUrl.replace(/\/$/, '');
     try {
-      const response = await fetch(`${baseUrl}${endpoint}`, {
+      const fetchOptions: RequestInit = {
+        method: options?.method || 'GET',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${settings.apiKey}`,
+          ...(options?.headers || {}),
         },
-      });
+      };
+
+      if (options?.body) {
+        fetchOptions.body = options.body;
+      }
+
+      const response = await fetch(`${baseUrl}${endpoint}`, fetchOptions);
       if (!response.ok) {
         throw new Error(`FastAPI Request failed with status ${response.status}`);
       }
       return await response.json() as T;
     } catch (error) {
-      console.warn(`FastAPI call to ${endpoint} failed, falling back to mock data. Error:`, error);
-      // Fallback to mock data so pages never crash or stay blank when server is down
-      return mockData;
+      console.warn(`FastAPI call to ${endpoint} failed. Error:`, error);
+      // Propagate the error directly when FastAPI is active, so the UI displays the true error state.
+      throw error;
     }
   }
 

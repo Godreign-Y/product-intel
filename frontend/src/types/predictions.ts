@@ -14,9 +14,23 @@ export interface ForecastMetricRow {
   confidence: number;
 }
 
+export interface SHAPDriver {
+  name: string;
+  weight: number;
+}
+
+export interface AccuracyIndicators {
+  confidence: string;
+  mae: string;
+  horizon: string;
+}
+
 export interface PredictionsData {
   metric: string;
   timeframe: string;
   forecastPoints: MetricForecastPoint[];
   summaryTable: ForecastMetricRow[];
+  shapDrivers?: SHAPDriver[];
+  explanationText?: string;
+  accuracyIndicators?: AccuracyIndicators;
 }
