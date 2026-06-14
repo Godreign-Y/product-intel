@@ -1,0 +1,12 @@
+version: '3.8'
+
+services:
+  ml-analytics-service:
+    build: .
+    container_name: ml_analytics_service
+    ports:
+      - "8000:8000"
+    environment:
+      - ENV=production
+      - LOG_LEVEL=info
+    restart: always

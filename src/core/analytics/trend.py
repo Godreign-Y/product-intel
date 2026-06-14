@@ -1,0 +1,73 @@
+import pandas as pd
+import numpy as np
+from scipy.stats import linregress
+from typing import Dict, Any, Optional
+
+def analyze_trends(
+    df: pd.DataFrame,
+    metric: str = "revenue",
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
+    product_id: Optional[str] = None
+) -> Dict[str, Any]:
+    """
+    Analyzes trajectories and performs regression over time for a target metric.
+    """
+    df_filtered = df.copy()
+    df_filtered["date"] = pd.to_datetime(df_filtered["date"])
+    
+    if start_date:
+        df_filtered = df_filtered[df_filtered["date"] >= pd.to_datetime(start_date)]
+    if end_date:
+        df_filtered = df_filtered[df_filtered["date"] <= pd.to_datetime(end_date)]
+    if product_id:
+        df_filtered = df_filtered[df_filtered["product_id"] == product_id]
+        
+    metric_lower = metric.lower()
+    if metric_lower not in df_filtered.columns:
+        metric_lower = "revenue"
+        
+    df_grouped = df_filtered.groupby("date")[metric_lower].sum().reset_index()
+    df_grouped = df_grouped.sort_values(by="date")
+    
+    if len(df_grouped) < 2:
+        return {
+            "metric": metric_lower,
+            "direction": "stable",
+            "slope": 0.0,
+            "r_squared": 0.0,
+            "p_value": 1.0,
+            "growth_rate_pct": 0.0,
+            "history": []
+        }
+        
+    day_indices = (df_grouped["date"] - df_grouped["date"].min()).dt.days.values
+    values = df_grouped[metric_lower].values
+    
+    slope, intercept, r_value, p_value, std_err = linregress(day_indices, values)
+    
+    start_val = np.mean(values[:max(1, len(values)//10)]) if len(values) >= 10 else values[0]
+    end_val = np.mean(values[-max(1, len(values)//10):]) if len(values) >= 10 else values[-1]
+    
+    growth_rate = ((end_val - start_val) / start_val * 100.0) if start_val > 0 else 0.0
+    
+    # Classify direction
+    if p_value < 0.05:
+        direction = "increasing" if slope > 0 else "decreasing"
+    else:
+        direction = "stable"
+        
+    history = [
+        {"date": row["date"].strftime("%Y-%m-%d"), "value": round(float(row[metric_lower]), 2)}
+        for _, row in df_grouped.iterrows()
+    ]
+    
+    return {
+        "metric": metric_lower,
+        "direction": direction,
+        "slope": round(float(slope), 4),
+        "r_squared": round(float(r_value ** 2), 4),
+        "p_value": round(float(p_value), 6),
+        "growth_rate_pct": round(float(growth_rate), 2),
+        "history": history[:100]  # Cap history size for JSON response
+    }
