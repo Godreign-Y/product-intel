@@ -100,6 +100,51 @@ TEMPORAL_COLUMNS = [
     "retention_rate",
 ]
 
+TIME_INDEX_COLUMN = "date"
+STATIC_COLUMNS = ["product_id", "category", "subcategory", "brand"]
+SLOWLY_CHANGING_COLUMNS = ["avg_ltv", "dominant_age_group", "retention_rate"]
+EXPERIMENT_DRIVEN_COLUMNS = [
+    "inventory_available",
+    "avg_selling_price",
+    "discount_pct",
+    "shipping_fee",
+    "marketing_spend",
+    "sales_channel_mix",
+    "campaign_mix",
+    "acquisition_mix",
+]
+DERIVED_COLUMNS = [
+    "amazon_sales_pct",
+    "website_sales_pct",
+    "nykaa_sales_pct",
+    "mobile_app_sales_pct",
+    "search_campaign_pct",
+    "social_campaign_pct",
+    "email_campaign_pct",
+    "affiliate_campaign_pct",
+    "google_source_pct",
+    "instagram_source_pct",
+    "facebook_source_pct",
+    "email_source_pct",
+    "organic_source_pct",
+    "referral_source_pct",
+    "traffic",
+    "active_users",
+    "current_ctr",
+    "current_roas",
+    "orders",
+    "revenue",
+    "profit",
+    "conversion_rate",
+]
+
+COLUMN_BEHAVIOR = {
+    **{column: "STATIC" for column in STATIC_COLUMNS},
+    **{column: "SLOWLY_CHANGING" for column in SLOWLY_CHANGING_COLUMNS},
+    **{column: "EXPERIMENT_DRIVEN" for column in EXPERIMENT_DRIVEN_COLUMNS},
+    **{column: "DERIVED" for column in DERIVED_COLUMNS},
+}
+
 EXPERIMENT_TYPES = [
     "Price Increase",
     "Price Decrease",
@@ -259,7 +304,17 @@ def create_products(n_products):
                     "Haircare": rng.uniform(0.30, 0.48),
                     "Makeup": rng.uniform(0.22, 0.38),
                 }[category],
+                "base_ltv": price
+                * {
+                    "Skincare": rng.uniform(3.2, 5.0),
+                    "Haircare": rng.uniform(2.4, 4.0),
+                    "Makeup": rng.uniform(1.8, 3.4),
+                }[category],
                 "dominant_age_group": dominant_age,
+                "age_shift_day": int(rng.integers(max(1, NUM_DAYS // 3), max(2, NUM_DAYS)))
+                if rng.random() < 0.22 and NUM_DAYS >= 90
+                else None,
+                "age_shift_direction": int(rng.choice([-1, 1])),
                 "sales_channel_mix": make_mix(
                     SALES_CHANNEL_KEYS,
                     {
@@ -333,17 +388,108 @@ def seasonal_multiplier(date, category, phase):
     return week_factor * month_factor * quarter_factor * category_factor * festival_multiplier(date, category)
 
 
+def adjust_mix_points(mix, adjustments):
+    adjusted = dict(mix)
+    for key, points in adjustments.items():
+        adjusted[key] = adjusted.get(key, 0.0) + float(points)
+    return normalize_mix(adjusted)
+
+
+def daily_sales_channel_mix(base_mix, date, category, progress, phase):
+    sale_period = festival_multiplier(date, category) > 1.05
+    weekend = date.dayofweek in [5, 6]
+    adjustments = {
+        "Amazon": 1.5 * np.sin(2 * np.pi * date.dayofyear / 21.0 + phase),
+        "Website": 1.2 * np.sin(2 * np.pi * date.dayofyear / 30.4 + phase / 2.0),
+        "MobileApp": 2.0 * progress,
+        "Nykaa": -0.8 * progress,
+    }
+    if weekend:
+        adjustments["Amazon"] += 1.4
+        adjustments["MobileApp"] += 0.8
+        adjustments["Website"] -= 0.7
+    if sale_period:
+        adjustments["Website"] += 2.8
+        adjustments["MobileApp"] += 1.6
+        adjustments["Amazon"] -= 1.7
+    if category == "Makeup" and date.month in [10, 11, 12]:
+        adjustments["Nykaa"] += 1.6
+        adjustments["MobileApp"] += 0.7
+    return adjust_mix_points(base_mix, adjustments)
+
+
+def daily_campaign_mix(base_mix, date, category, progress, phase):
+    sale_period = festival_multiplier(date, category) > 1.05
+    monthly_sale = date.day <= 5 or date.day >= 27
+    adjustments = {
+        "Search": 1.4 * np.sin(2 * np.pi * date.dayofyear / 28.0 + phase),
+        "Social": 1.3 * np.sin(2 * np.pi * date.dayofyear / 14.0 + phase / 3.0),
+        "Email": 1.5 * progress,
+        "Affiliate": -0.9 * progress,
+    }
+    if sale_period:
+        adjustments["Search"] += 2.3
+        adjustments["Email"] += 1.8
+        adjustments["Social"] += 1.1 if category == "Makeup" else -0.4
+    if monthly_sale:
+        adjustments["Email"] += 1.4
+        adjustments["Affiliate"] += 0.8
+    if date.dayofweek in [5, 6]:
+        adjustments["Social"] += 1.2
+        adjustments["Search"] -= 0.6
+    return adjust_mix_points(base_mix, adjustments)
+
+
+def daily_acquisition_mix(base_mix, date, category, progress, phase):
+    sale_period = festival_multiplier(date, category) > 1.05
+    adjustments = {
+        "Google": 1.2 * np.sin(2 * np.pi * date.dayofyear / 24.0 + phase),
+        "Instagram": 1.4 * np.sin(2 * np.pi * date.dayofyear / 17.0 + phase / 2.0),
+        "Facebook": -1.4 * progress,
+        "Email": 0.9 * progress,
+        "Organic": 2.4 * progress,
+        "Referral": 0.5 * np.sin(2 * np.pi * date.dayofyear / 60.0 + phase),
+    }
+    if sale_period:
+        adjustments["Google"] += 2.0
+        adjustments["Instagram"] += 1.3 if category == "Makeup" else 0.5
+        adjustments["Email"] += 1.1
+        adjustments["Organic"] -= 1.2
+    if date.dayofweek in [5, 6]:
+        adjustments["Instagram"] += 1.0
+        adjustments["Facebook"] += 0.5
+    return adjust_mix_points(base_mix, adjustments)
+
+
+def dominant_age_for_date(product, day_offset):
+    shift_day = product.get("age_shift_day")
+    if shift_day is None or day_offset < shift_day:
+        return product["dominant_age_group"]
+
+    current_index = AGE_GROUPS.index(product["dominant_age_group"])
+    shifted_index = int(np.clip(current_index + product["age_shift_direction"], 0, len(AGE_GROUPS) - 1))
+    return AGE_GROUPS[shifted_index]
+
+
 def build_temporal_baseline(products):
     rows = []
     brand_trend = {"Minimalist": 0.18, "Mamaearth": 0.09, "The Derma Co": 0.15}
 
     for product in products.to_dict("records"):
         for date in DATES:
-            progress = (date - DATE_START).days / max(NUM_DAYS - 1, 1)
+            day_offset = (date - DATE_START).days
+            progress = day_offset / max(NUM_DAYS - 1, 1)
             demand_factor = seasonal_multiplier(date, product["category"], product["phase"])
             trend_factor = 1.0 + brand_trend[product["brand"]] * progress
             sale_period = festival_multiplier(date, product["category"]) > 1.05
             monthly_sale = date.day <= 5 or date.day >= 27
+            sales_channel_mix = daily_sales_channel_mix(
+                product["sales_channel_mix"], date, product["category"], progress, product["phase"]
+            )
+            campaign_mix = daily_campaign_mix(product["campaign_mix"], date, product["category"], progress, product["phase"])
+            acquisition_mix = daily_acquisition_mix(
+                product["acquisition_mix"], date, product["category"], progress, product["phase"]
+            )
             discount = product["base_discount"] + (5.0 if sale_period else 0.0) + (2.5 if monthly_sale else 0.0)
             discount += rng.normal(0, 1.2)
             discount = float(np.clip(discount, 0, 42))
@@ -365,14 +511,14 @@ def build_temporal_baseline(products):
                     "category": product["category"],
                     "subcategory": product["subcategory"],
                     "brand": product["brand"],
-                    "dominant_age_group": product["dominant_age_group"],
+                    "dominant_age_group": dominant_age_for_date(product, day_offset),
                     "inventory_available": inventory_available,
                     "avg_selling_price": float(product["base_price"]),
                     "discount_pct": round(discount, 2),
                     "shipping_fee": float(product["base_shipping_fee"]),
-                    "sales_channel_mix": dict(product["sales_channel_mix"]),
-                    "campaign_mix": dict(product["campaign_mix"]),
-                    "acquisition_mix": dict(product["acquisition_mix"]),
+                    "sales_channel_mix": sales_channel_mix,
+                    "campaign_mix": campaign_mix,
+                    "acquisition_mix": acquisition_mix,
                     "marketing_spend": round_money(marketing_spend),
                     "_demand_factor": demand_factor,
                     "_trend_factor": trend_factor,
@@ -383,7 +529,9 @@ def build_temporal_baseline(products):
                     "_base_ctr": product["base_ctr"],
                     "_base_retention": product["base_retention"],
                     "_base_price": product["base_price"],
-                    "_base_ltv": product["base_price"] * rng.uniform(2.1, 4.6),
+                    "_base_ltv": product["base_ltv"],
+                    "_slow_progress": progress,
+                    "_phase": product["phase"],
                 }
             )
 
@@ -803,7 +951,6 @@ def recompute_metrics(df):
             conversion_rate = float(np.clip(conversion_rate * rng.normal(1.0, 0.045), 0.004, 0.145))
 
             unconstrained_orders = active_users * conversion_rate
-            inventory_pressure = np.clip(inventory / max(unconstrained_orders, 1.0), 0.0, 1.0)
             orders = min(unconstrained_orders, inventory) * rng.normal(1.0, 0.025)
             orders = max(0.0, orders)
             lagged_orders = 0.62 * lagged_orders + 0.38 * orders
@@ -817,15 +964,12 @@ def recompute_metrics(df):
             profit = revenue - gross_cost - spend - marketplace_fee - shipping_subsidy
             current_roas = revenue / max(spend, 1.0)
 
-            retention_rate = (
-                row["_base_retention"]
-                * (0.96 + 0.08 * row["email_campaign_pct"] / 100.0)
-                * (0.96 + 0.11 * row["organic_source_pct"] / 100.0)
-                * (0.94 + 0.09 * inventory_pressure)
-                * (1.0 - min(shipping_fee / max(price, 1.0), 0.16))
-            )
-            retention_rate = float(np.clip(retention_rate * rng.normal(1.0, 0.025), 0.12, 0.72))
-            avg_ltv = row["_base_ltv"] * (0.74 + retention_rate) * (0.94 + 0.12 * channel_margin)
+            slow_day = (row["date"] - DATE_START).days
+            retention_cycle = 1.0 + 0.025 * np.sin(2 * np.pi * slow_day / 120.0 + row["_phase"])
+            retention_rate = row["_base_retention"] * (0.98 + 0.07 * row["_slow_progress"]) * retention_cycle
+            retention_rate = float(np.clip(retention_rate * rng.normal(1.0, 0.006), 0.12, 0.72))
+            ltv_cycle = 1.0 + 0.018 * np.sin(2 * np.pi * slow_day / 180.0 + row["_phase"] / 2.0)
+            avg_ltv = row["_base_ltv"] * (0.92 + 0.13 * row["_slow_progress"]) * (0.86 + retention_rate) * ltv_cycle
 
             row.update(
                 {
@@ -922,8 +1066,8 @@ def build_data_dictionary(temporal_df, experiment_df):
         "category": "Beauty and personal care category.",
         "subcategory": "Product subcategory mapped to category.",
         "brand": "D2C beauty brand.",
-        "avg_ltv": "Estimated average customer lifetime value associated with the product on that date.",
-        "dominant_age_group": "Dominant age band for product demand.",
+        "avg_ltv": "Slowly changing estimated average customer lifetime value for the product.",
+        "dominant_age_group": "Slowly changing dominant age band for product demand.",
         "inventory_available": "Daily available selling capacity or units in stock.",
         "avg_selling_price": "Listed average selling price before discount.",
         "discount_pct": "Average discount percentage applied.",
@@ -940,7 +1084,7 @@ def build_data_dictionary(temporal_df, experiment_df):
         "revenue": "Net revenue after discount.",
         "profit": "Estimated profit after cost, spend, fees, and shipping subsidy.",
         "conversion_rate": "Active user to order conversion rate.",
-        "retention_rate": "Estimated retention rate influenced by product, channel, inventory, and lifecycle mix.",
+        "retention_rate": "Slowly changing estimated retention rate for the product.",
         "experiment_id": "Stable experiment identifier.",
         "experiment_type": "Experiment family or strategy type.",
         "start_date": "Experiment start date within the configured timeline.",
@@ -954,7 +1098,7 @@ def build_data_dictionary(temporal_df, experiment_df):
         "notes": "Plain-language explanation of the experiment design.",
     }
 
-    target_cols = {"orders", "revenue", "profit", "conversion_rate", "retention_rate", "current_roas", "observed_effect_pct", "result"}
+    target_cols = {"orders", "revenue", "profit", "conversion_rate", "current_roas", "observed_effect_pct", "result"}
     json_cols = {"sales_channel_mix", "campaign_mix", "acquisition_mix", "changed_features"}
     categorical_cols = {"category", "subcategory", "brand", "dominant_age_group", "experiment_type", "expected_direction", "result"}
     date_cols = {"date", "start_date", "end_date"}
@@ -1020,6 +1164,37 @@ def validate_flattened_sums(serialized_temporal):
     return results
 
 
+def validate_column_classification():
+    assigned_columns = STATIC_COLUMNS + SLOWLY_CHANGING_COLUMNS + EXPERIMENT_DRIVEN_COLUMNS + DERIVED_COLUMNS
+    business_columns = [column for column in TEMPORAL_COLUMNS if column != TIME_INDEX_COLUMN]
+    duplicate_columns = sorted({column for column in assigned_columns if assigned_columns.count(column) > 1})
+    missing_columns = sorted(set(business_columns) - set(assigned_columns))
+    extra_columns = sorted(set(assigned_columns) - set(business_columns))
+
+    return {
+        "time_index_column": TIME_INDEX_COLUMN,
+        "business_columns": len(business_columns),
+        "classified_columns": len(set(assigned_columns)),
+        "duplicate_classifications": duplicate_columns,
+        "missing_classifications": missing_columns,
+        "extra_classifications": extra_columns,
+        "valid": not duplicate_columns and not missing_columns and not extra_columns,
+    }
+
+
+def validate_mix_variation(serialized_temporal):
+    results = {}
+    for column in ["sales_channel_mix", "campaign_mix", "acquisition_mix"]:
+        unique_counts = serialized_temporal.groupby("product_id")[column].nunique()
+        results[column] = {
+            "products_checked": int(unique_counts.shape[0]),
+            "products_with_daily_variation": int((unique_counts > 1).sum()),
+            "min_unique_values_per_product": int(unique_counts.min()),
+            "max_unique_values_per_product": int(unique_counts.max()),
+        }
+    return results
+
+
 def validate_experiment_reflection(temporal_df, experiment_df):
     temporal_dates = temporal_df.assign(date=pd.to_datetime(temporal_df["date"]))
     checks = []
@@ -1070,6 +1245,10 @@ def print_validation(temporal_df, experiment_df, dictionary_df):
     print(json.dumps(validate_json_sums(temporal_df), indent=2))
     print("\nFlattened mix sum validation")
     print(json.dumps(validate_flattened_sums(temporal_df), indent=2))
+    print("\nGolden rule column classification validation")
+    print(json.dumps(validate_column_classification(), indent=2))
+    print("\nExperiment-driven mix variation validation")
+    print(json.dumps(validate_mix_variation(temporal_df), indent=2))
     print("\nExperiment counts by experiment_type")
     print(experiment_df["experiment_type"].value_counts().sort_index().to_string())
     print("\nExperiment product_id existence")

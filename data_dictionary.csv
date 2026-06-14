@@ -4,51 +4,51 @@ product_id,temporal_dataset.csv,float,Stable product identifier shared across da
 category,temporal_dataset.csv,categorical,Beauty and personal care category.,True,False,Skincare
 subcategory,temporal_dataset.csv,categorical,Product subcategory mapped to category.,True,False,Serum
 brand,temporal_dataset.csv,categorical,D2C beauty brand.,True,False,Mamaearth
-avg_ltv,temporal_dataset.csv,integer,Estimated average customer lifetime value associated with the product on that date.,True,False,3757
-dominant_age_group,temporal_dataset.csv,categorical,Dominant age band for product demand.,True,False,25-34
-inventory_available,temporal_dataset.csv,integer,Daily available selling capacity or units in stock.,True,False,2196
+avg_ltv,temporal_dataset.csv,integer,Slowly changing estimated average customer lifetime value for the product.,True,False,4403
+dominant_age_group,temporal_dataset.csv,categorical,Slowly changing dominant age band for product demand.,True,False,18-24
+inventory_available,temporal_dataset.csv,integer,Daily available selling capacity or units in stock.,True,False,2287
 avg_selling_price,temporal_dataset.csv,integer,Listed average selling price before discount.,True,False,720
 discount_pct,temporal_dataset.csv,integer,Average discount percentage applied.,True,False,18
 shipping_fee,temporal_dataset.csv,integer,Customer-facing shipping fee.,True,False,69
-sales_channel_mix,temporal_dataset.csv,json,JSON percentage mix of sales channels; keys can evolve over time.,True,False,"{""Amazon"": 42.53, ""MobileApp"": 12.97, ""Nykaa"": 23.74, ""Website"": 20.76}"
-campaign_mix,temporal_dataset.csv,json,JSON percentage mix of campaign types; keys can evolve over time.,True,False,"{""Affiliate"": 5.97, ""Email"": 28.88, ""Search"": 41.59, ""Social"": 23.56}"
-acquisition_mix,temporal_dataset.csv,json,JSON percentage mix of acquisition sources; keys can evolve over time.,True,False,"{""Email"": 7.41, ""Facebook"": 9.4, ""Google"": 45.79, ""Instagram"": 22.1, ""Organic"": 12.24, ""Referral"": 3.06}"
-amazon_sales_pct,temporal_dataset.csv,float,amazon_sales_pct field in temporal_dataset.csv.,True,False,42.53
-website_sales_pct,temporal_dataset.csv,float,website_sales_pct field in temporal_dataset.csv.,True,False,20.76
-nykaa_sales_pct,temporal_dataset.csv,float,nykaa_sales_pct field in temporal_dataset.csv.,True,False,23.74
-mobile_app_sales_pct,temporal_dataset.csv,float,mobile_app_sales_pct field in temporal_dataset.csv.,True,False,12.97
-search_campaign_pct,temporal_dataset.csv,float,search_campaign_pct field in temporal_dataset.csv.,True,False,41.59
-social_campaign_pct,temporal_dataset.csv,float,social_campaign_pct field in temporal_dataset.csv.,True,False,23.56
-email_campaign_pct,temporal_dataset.csv,float,email_campaign_pct field in temporal_dataset.csv.,True,False,28.88
-affiliate_campaign_pct,temporal_dataset.csv,float,affiliate_campaign_pct field in temporal_dataset.csv.,True,False,5.97
-google_source_pct,temporal_dataset.csv,float,google_source_pct field in temporal_dataset.csv.,True,False,45.79
-instagram_source_pct,temporal_dataset.csv,float,instagram_source_pct field in temporal_dataset.csv.,True,False,22.1
-facebook_source_pct,temporal_dataset.csv,float,facebook_source_pct field in temporal_dataset.csv.,True,False,9.4
-email_source_pct,temporal_dataset.csv,float,email_source_pct field in temporal_dataset.csv.,True,False,7.41
-organic_source_pct,temporal_dataset.csv,float,organic_source_pct field in temporal_dataset.csv.,True,False,12.24
-referral_source_pct,temporal_dataset.csv,float,referral_source_pct field in temporal_dataset.csv.,True,False,3.06
-marketing_spend,temporal_dataset.csv,integer,Daily marketing spend for the product.,True,False,8548
-traffic,temporal_dataset.csv,integer,"Daily product-level traffic influenced by seasonality, spend, and channel mix.",True,False,3923
-active_users,temporal_dataset.csv,integer,Engaged visitors or active product users derived from traffic quality.,True,False,1037
-current_ctr,temporal_dataset.csv,float,Current click-through rate for product campaigns.,True,False,0.0236
-current_roas,temporal_dataset.csv,float,Revenue divided by marketing spend.,False,True,3.667
-orders,temporal_dataset.csv,integer,Daily orders after conversion and inventory constraints.,False,True,53
-revenue,temporal_dataset.csv,float,Net revenue after discount.,False,True,31342.26
-profit,temporal_dataset.csv,float,"Estimated profit after cost, spend, fees, and shipping subsidy.",False,True,5662.89
-conversion_rate,temporal_dataset.csv,float,Active user to order conversion rate.,False,True,0.0506
-retention_rate,temporal_dataset.csv,float,"Estimated retention rate influenced by product, channel, inventory, and lifecycle mix.",False,True,0.4568
+sales_channel_mix,temporal_dataset.csv,json,JSON percentage mix of sales channels; keys can evolve over time.,True,False,"{""Amazon"": 38.09, ""MobileApp"": 11.0, ""Nykaa"": 12.88, ""Website"": 38.03}"
+campaign_mix,temporal_dataset.csv,json,JSON percentage mix of campaign types; keys can evolve over time.,True,False,"{""Affiliate"": 5.44, ""Email"": 26.02, ""Search"": 44.23, ""Social"": 24.31}"
+acquisition_mix,temporal_dataset.csv,json,JSON percentage mix of acquisition sources; keys can evolve over time.,True,False,"{""Email"": 10.67, ""Facebook"": 14.31, ""Google"": 37.41, ""Instagram"": 22.8, ""Organic"": 14.14, ""Referral"": 0.67}"
+amazon_sales_pct,temporal_dataset.csv,float,amazon_sales_pct field in temporal_dataset.csv.,True,False,38.09
+website_sales_pct,temporal_dataset.csv,float,website_sales_pct field in temporal_dataset.csv.,True,False,38.03
+nykaa_sales_pct,temporal_dataset.csv,float,nykaa_sales_pct field in temporal_dataset.csv.,True,False,12.88
+mobile_app_sales_pct,temporal_dataset.csv,float,mobile_app_sales_pct field in temporal_dataset.csv.,True,False,11.0
+search_campaign_pct,temporal_dataset.csv,float,search_campaign_pct field in temporal_dataset.csv.,True,False,44.23
+social_campaign_pct,temporal_dataset.csv,float,social_campaign_pct field in temporal_dataset.csv.,True,False,24.31
+email_campaign_pct,temporal_dataset.csv,float,email_campaign_pct field in temporal_dataset.csv.,True,False,26.02
+affiliate_campaign_pct,temporal_dataset.csv,float,affiliate_campaign_pct field in temporal_dataset.csv.,True,False,5.44
+google_source_pct,temporal_dataset.csv,float,google_source_pct field in temporal_dataset.csv.,True,False,37.41
+instagram_source_pct,temporal_dataset.csv,float,instagram_source_pct field in temporal_dataset.csv.,True,False,22.8
+facebook_source_pct,temporal_dataset.csv,float,facebook_source_pct field in temporal_dataset.csv.,True,False,14.31
+email_source_pct,temporal_dataset.csv,float,email_source_pct field in temporal_dataset.csv.,True,False,10.67
+organic_source_pct,temporal_dataset.csv,float,organic_source_pct field in temporal_dataset.csv.,True,False,14.14
+referral_source_pct,temporal_dataset.csv,float,referral_source_pct field in temporal_dataset.csv.,True,False,0.67
+marketing_spend,temporal_dataset.csv,integer,Daily marketing spend for the product.,True,False,7860
+traffic,temporal_dataset.csv,integer,"Daily product-level traffic influenced by seasonality, spend, and channel mix.",True,False,3806
+active_users,temporal_dataset.csv,integer,Engaged visitors or active product users derived from traffic quality.,True,False,1071
+current_ctr,temporal_dataset.csv,float,Current click-through rate for product campaigns.,True,False,0.0227
+current_roas,temporal_dataset.csv,float,Revenue divided by marketing spend.,False,True,3.7
+orders,temporal_dataset.csv,integer,Daily orders after conversion and inventory constraints.,False,True,49
+revenue,temporal_dataset.csv,float,Net revenue after discount.,False,True,29085.45
+profit,temporal_dataset.csv,float,"Estimated profit after cost, spend, fees, and shipping subsidy.",False,True,5629.5
+conversion_rate,temporal_dataset.csv,float,Active user to order conversion rate.,False,True,0.0468
+retention_rate,temporal_dataset.csv,float,Slowly changing estimated retention rate for the product.,True,False,0.4985
 experiment_id,experiment_dataset.csv,float,Stable experiment identifier.,True,False,EXP0001
-product_id,experiment_dataset.csv,float,Stable product identifier shared across datasets.,True,False,P078
-category,experiment_dataset.csv,categorical,Beauty and personal care category.,True,False,Makeup
-subcategory,experiment_dataset.csv,categorical,Product subcategory mapped to category.,True,False,Lipstick
+product_id,experiment_dataset.csv,float,Stable product identifier shared across datasets.,True,False,P022
+category,experiment_dataset.csv,categorical,Beauty and personal care category.,True,False,Skincare
+subcategory,experiment_dataset.csv,categorical,Product subcategory mapped to category.,True,False,Serum
 brand,experiment_dataset.csv,categorical,D2C beauty brand.,True,False,The Derma Co
 experiment_type,experiment_dataset.csv,categorical,Experiment family or strategy type.,True,False,Price Increase
-start_date,experiment_dataset.csv,date,Experiment start date within the configured timeline.,True,False,2025-05-11
-end_date,experiment_dataset.csv,date,Experiment end date within the configured timeline.,True,False,2025-06-10
-changed_features,experiment_dataset.csv,json,JSON object with exact tested feature changes.,True,False,"{""avg_selling_price"": {""change_pct"": 10.39, ""new"": 419.47, ""old"": 380.0}}"
+start_date,experiment_dataset.csv,date,Experiment start date within the configured timeline.,True,False,2025-02-27
+end_date,experiment_dataset.csv,date,Experiment end date within the configured timeline.,True,False,2025-04-03
+changed_features,experiment_dataset.csv,json,JSON object with exact tested feature changes.,True,False,"{""avg_selling_price"": {""change_pct"": 8.88, ""new"": 1121.48, ""old"": 1030.0}}"
 primary_metric,experiment_dataset.csv,float,Main temporal dataset field evaluated for the experiment.,True,False,profit
 expected_direction,experiment_dataset.csv,categorical,Expected direction for the primary metric.,True,False,Increase
-observed_effect_pct,experiment_dataset.csv,float,Observed percentage lift or decline versus pre-period baseline.,False,True,64.32
+observed_effect_pct,experiment_dataset.csv,float,Observed percentage lift or decline versus pre-period baseline.,False,True,19.22
 result,experiment_dataset.csv,categorical,"Win, Loss, or Inconclusive based on observed direction and confidence.",False,True,Win
-confidence,experiment_dataset.csv,float,Synthetic confidence score for experiment readout.,True,False,0.93
+confidence,experiment_dataset.csv,float,Synthetic confidence score for experiment readout.,True,False,0.768
 notes,experiment_dataset.csv,float,Plain-language explanation of the experiment design.,True,False,Premium price test expects higher unit margin with some demand elasticity.
