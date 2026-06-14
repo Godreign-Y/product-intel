@@ -1,0 +1,19 @@
+{
+  "name": "product-intel-monorepo",
+  "version": "1.0.0",
+  "description": "Monorepo containing AI-powered Business Analytics Assistant frontend and backend.",
+  "private": true,
+  "scripts": {
+    "setup:backend": "cd backend && uv venv && uv pip install -r requirements.txt",
+    "setup:frontend": "npm install --prefix frontend",
+    "setup": "npm run setup:frontend && npm run setup:backend",
+    "dev:backend": "cd backend && uv run python run.py",
+    "dev:frontend": "npm --prefix frontend run dev",
+    "dev": "concurrently -n \"frontend,backend\" -c \"bgBlue,bgGreen\" \"npm run dev:frontend\" \"npm run dev:backend\"",
+    "train": "cd backend && uv run python src/pipeline/trainer.py",
+    "test:backend": "cd backend && uv run pytest"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  }
+}
