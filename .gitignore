@@ -1,6 +1,33 @@
-venv/
-.env
-.pytest_cache/
-models/
-.next/
+# Dependency directories
 node_modules/
+jspm_packages/
+
+# Next.js
+.next/
+out/
+next-env.d.ts
+
+# Python virtual environment
+venv/
+.venv/
+__pycache__/
+*.pyc
+
+# Local env files
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# IDEs and editors
+.idea/
+.vscode/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Testing
+.pytest_cache/
