@@ -1,0 +1,95 @@
+import { Experiment, SimulationPreview } from '../types/experiments';
+
+export const mockSimulationPreview: SimulationPreview = {
+  expectedImpact: [
+    { metric: 'Conversion Rate', percentChange: 4.2, isPositive: true },
+    { metric: 'Revenue', percentChange: 2.8, isPositive: true },
+    { metric: 'Profit', percentChange: 1.6, isPositive: true },
+  ],
+  confidenceScore: 81,
+  riskLevel: 'Medium',
+  revenueImpactOverTime: [
+    { week: 'Week 1', current: 2100000, simulated: 2150000 },
+    { week: 'Week 2', current: 2150000, simulated: 2220000 },
+    { week: 'Week 3', current: 2200000, simulated: 2290000 },
+    { week: 'Week 4', current: 2300000, simulated: 2410000 },
+  ],
+};
+
+export const mockExperiments: Experiment[] = [
+  {
+    id: 'exp_1',
+    name: 'Checkout Simplification',
+    objective: 'Reduce steps in checkout to decrease cart abandonment.',
+    hypothesis: 'If we reduce the checkout from 5 steps to 3 steps, we will increase conversion rates by removing friction.',
+    primaryMetric: 'Conversion Rate',
+    type: 'A/B Test',
+    status: 'Completed',
+    createdAt: '2026-05-10T08:00:00Z',
+    variables: [
+      { id: 'var_1', name: 'Checkout Steps', currentValue: '5', newValue: '3' },
+    ],
+    result: '+6.2% conversion',
+    changePercent: 6.2,
+    isPositive: true,
+  },
+  {
+    id: 'exp_2',
+    name: 'Free Shipping Threshold',
+    objective: 'Increase Average Order Value (AOV).',
+    hypothesis: 'Increasing free shipping threshold from $50 to $75 will encourage users to add more items to cart.',
+    primaryMetric: 'Average Order Value',
+    type: 'Simulation',
+    status: 'Running',
+    createdAt: '2026-06-01T09:00:00Z',
+    variables: [
+      { id: 'var_2', name: 'Shipping Threshold', currentValue: '$50', newValue: '$75' },
+    ],
+  },
+  {
+    id: 'exp_3',
+    name: 'Product Page Redesign',
+    objective: 'Improve product engagement and add-to-cart rate.',
+    hypothesis: 'Adding customer review clips and a larger Buy Now button will increase confidence and clicks.',
+    primaryMetric: 'Add to Cart Rate',
+    type: 'Multi-variant',
+    status: 'Running',
+    createdAt: '2026-06-05T10:00:00Z',
+    variables: [
+      { id: 'var_3', name: 'Buy Now Button Size', currentValue: 'Medium', newValue: 'Large' },
+      { id: 'var_4', name: 'Review Format', currentValue: 'Text Only', newValue: 'Video & Text' },
+    ],
+  },
+  {
+    id: 'exp_4',
+    name: 'Exit Intent Popup',
+    objective: 'Recover abandoning users.',
+    hypothesis: 'Displaying a 10% coupon when cursor moves to close tab will recover 2% of abandoning users.',
+    primaryMetric: 'Conversion Rate',
+    type: 'A/B Test',
+    status: 'Completed',
+    createdAt: '2026-04-15T11:00:00Z',
+    variables: [
+      { id: 'var_5', name: 'Exit Intent Modal', currentValue: 'Disabled', newValue: 'Enabled' },
+    ],
+    result: '+2.1% conversion',
+    changePercent: 2.1,
+    isPositive: true,
+  },
+  {
+    id: 'exp_5',
+    name: 'Bundle Discount Test',
+    objective: 'Promote multiple product purchases.',
+    hypothesis: 'Offering 15% off when buying 3 items in a bundle will increase average order value and overall volume.',
+    primaryMetric: 'AOV & Quantity per Order',
+    type: 'Simulation',
+    status: 'Completed',
+    createdAt: '2026-05-20T12:00:00Z',
+    variables: [
+      { id: 'var_6', name: 'Bundle discount', currentValue: '0%', newValue: '15%' },
+    ],
+    result: '-1.3% conversion',
+    changePercent: -1.3,
+    isPositive: false,
+  },
+];
