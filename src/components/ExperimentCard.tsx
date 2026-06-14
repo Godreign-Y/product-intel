@@ -13,7 +13,7 @@ export const ExperimentCard: React.FC<ExperimentCardProps> = ({ experiment, onSe
 
   const statusColors = {
     Completed: 'bg-emerald-50 text-emerald-700 border-emerald-100',
-    Running: 'bg-indigo-50 text-indigo-700 border-indigo-100',
+    Running: 'bg-purple-50 text-[#7C3AED] border-purple-100',
     Draft: 'bg-slate-50 text-slate-600 border-slate-200',
   };
 
@@ -46,7 +46,7 @@ export const ExperimentCard: React.FC<ExperimentCardProps> = ({ experiment, onSe
           </div>
         </div>
 
-        <h3 className="text-base font-bold text-slate-900 mt-4 group-hover:text-indigo-600 transition-colors duration-150">
+        <h3 className="text-base font-bold text-slate-900 mt-4 group-hover:text-[#7C3AED] transition-colors duration-150">
           {name}
         </h3>
 
@@ -76,7 +76,7 @@ export const ExperimentCard: React.FC<ExperimentCardProps> = ({ experiment, onSe
                 <span className="flex items-center text-[10px] font-bold text-slate-700">
                   <span className="text-slate-400 line-through mr-1">{v.currentValue}</span>
                   <ChevronRight className="w-2.5 h-2.5 text-slate-400 mx-0.5" />
-                  <span className="text-indigo-600 bg-indigo-50 px-1 rounded">{v.newValue}</span>
+                  <span className="text-indigo-600 bg-purple-50 px-1 rounded">{v.newValue}</span>
                 </span>
               </div>
             ))}
@@ -106,7 +106,7 @@ export const ExperimentCard: React.FC<ExperimentCardProps> = ({ experiment, onSe
         {onSelect && (
           <button
             onClick={() => onSelect(experiment)}
-            className="text-xs text-indigo-600 hover:text-indigo-700 font-bold flex items-center gap-0.5 cursor-pointer whitespace-nowrap"
+            className="text-xs text-[#7C3AED] hover:text-[#6D28D9] font-bold flex items-center gap-0.5 cursor-pointer whitespace-nowrap"
           >
             Details
             <ChevronRight className="w-3.5 h-3.5" />

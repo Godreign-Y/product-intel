@@ -364,3 +364,89 @@ export const SimulationChart: React.FC<SimulationChartProps> = ({ data }) => {
     </div>
   );
 };
+
+// 4. Dedicated Revenue Trend Chart for Dashboard
+export const RevenueTrendChart: React.FC<PerformanceChartProps> = ({ data }) => {
+  const formatYAxis = (value: number) => {
+    if (value >= 1000000) return `$${(value / 1000000).toFixed(1)}M`;
+    if (value >= 1000) return `$${(value / 1000).toFixed(0)}K`;
+    return `$${value}`;
+  };
+
+  return (
+    <div className="bg-white rounded-[20px] border border-[#E5E7EB] p-6 shadow-sm hover:shadow-md transition-all duration-200 h-[350px] flex flex-col justify-between">
+      <div className="pb-3 border-b border-slate-50">
+        <h3 className="text-sm font-bold text-[#111827]">Revenue Trend</h3>
+        <p className="text-xs text-[#6B7280]">Monthly revenue tracking stream</p>
+      </div>
+      <div className="h-56 mt-4">
+        <ClientOnly>
+          <ResponsiveContainer width="100%" height="100%">
+            <AreaChart data={data} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
+              <defs>
+                <linearGradient id="revenueColor" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor="#7C3AED" stopOpacity={0.2}/>
+                  <stop offset="95%" stopColor="#7C3AED" stopOpacity={0}/>
+                </linearGradient>
+              </defs>
+              <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
+              <XAxis dataKey="date" stroke="#9CA3AF" fontSize={11} tickLine={false} axisLine={false} dy={10} />
+              <YAxis stroke="#9CA3AF" fontSize={11} tickLine={false} axisLine={false} tickFormatter={formatYAxis} dx={-5} />
+              <Tooltip
+                contentStyle={{
+                  backgroundColor: '#ffffff',
+                  border: '1px solid #e2e8f0',
+                  borderRadius: '12px',
+                  boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)',
+                }}
+                labelStyle={{ fontWeight: 'bold', color: '#111827' }}
+                itemStyle={{ fontSize: '12px' }}
+              />
+              <Area type="monotone" name="Revenue" dataKey="revenue" stroke="#7C3AED" strokeWidth={2.5} fillOpacity={1} fill="url(#revenueColor)" dot={{ r: 4, strokeWidth: 1, fill: '#ffffff', stroke: '#7C3AED' }} />
+            </AreaChart>
+          </ResponsiveContainer>
+        </ClientOnly>
+      </div>
+    </div>
+  );
+};
+
+// 5. Dedicated Conversion Trend Chart for Dashboard
+export const ConversionTrendChart: React.FC<PerformanceChartProps> = ({ data }) => {
+  return (
+    <div className="bg-white rounded-[20px] border border-[#E5E7EB] p-6 shadow-sm hover:shadow-md transition-all duration-200 h-[350px] flex flex-col justify-between">
+      <div className="pb-3 border-b border-slate-50">
+        <h3 className="text-sm font-bold text-[#111827]">Conversion Trend</h3>
+        <p className="text-xs text-[#6B7280]">Conversion rate tracking stream</p>
+      </div>
+      <div className="h-56 mt-4">
+        <ClientOnly>
+          <ResponsiveContainer width="100%" height="100%">
+            <AreaChart data={data} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
+              <defs>
+                <linearGradient id="conversionColor" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor="#3B82F6" stopOpacity={0.2}/>
+                  <stop offset="95%" stopColor="#3B82F6" stopOpacity={0}/>
+                </linearGradient>
+              </defs>
+              <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
+              <XAxis dataKey="date" stroke="#9CA3AF" fontSize={11} tickLine={false} axisLine={false} dy={10} />
+              <YAxis stroke="#9CA3AF" fontSize={11} tickLine={false} axisLine={false} tickFormatter={(v) => `${v}%`} dx={-5} />
+              <Tooltip
+                contentStyle={{
+                  backgroundColor: '#ffffff',
+                  border: '1px solid #e2e8f0',
+                  borderRadius: '12px',
+                  boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)',
+                }}
+                labelStyle={{ fontWeight: 'bold', color: '#111827' }}
+                itemStyle={{ fontSize: '12px' }}
+              />
+              <Area type="monotone" name="Conversion Rate" dataKey="conversionRate" stroke="#3B82F6" strokeWidth={2.5} fillOpacity={1} fill="url(#conversionColor)" dot={{ r: 4, strokeWidth: 1, fill: '#ffffff', stroke: '#3B82F6' }} />
+            </AreaChart>
+          </ResponsiveContainer>
+        </ClientOnly>
+      </div>
+    </div>
+  );
+};

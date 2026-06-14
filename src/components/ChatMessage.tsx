@@ -17,7 +17,7 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, onSuggestionC
         {/* Avatar */}
         <div
           className={`flex-shrink-0 w-8 h-8 rounded-lg flex items-center justify-center shadow-sm ${
-            isUser ? 'bg-indigo-50 text-indigo-600' : 'bg-gradient-to-tr from-violet-600 to-indigo-600 text-white'
+            isUser ? 'bg-[#F3E8FF] text-[#7C3AED]' : 'bg-[#7C3AED] text-white'
           }`}
         >
           {isUser ? <User className="w-4 h-4" /> : <Sparkles className="w-4 h-4" />}
@@ -35,7 +35,7 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, onSuggestionC
           <div
             className={`rounded-2xl px-5 py-3.5 shadow-sm border text-sm leading-relaxed whitespace-pre-line ${
               isUser
-                ? 'bg-indigo-600 text-white border-indigo-700 rounded-tr-none'
+                ? 'bg-[#7C3AED] text-white border-[#6D28D9] rounded-tr-none'
                 : 'bg-white text-slate-800 border-slate-100 rounded-tl-none'
             }`}
           >
@@ -43,9 +43,9 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, onSuggestionC
 
             {/* Attached files rendering */}
             {files && files.length > 0 && (
-              <div className="mt-3 pt-3 border-t border-indigo-500/30 flex flex-wrap gap-2">
+              <div className="mt-3 pt-3 border-t border-purple-400/30 flex flex-wrap gap-2">
                 {files.map((f, i) => (
-                  <div key={i} className="flex items-center gap-1.5 text-xs bg-indigo-700/50 text-indigo-50 border border-indigo-500/20 px-2 py-1 rounded-md">
+                  <div key={i} className="flex items-center gap-1.5 text-xs bg-purple-800/40 text-purple-50 border border-purple-500/20 px-2 py-1 rounded-md">
                     <span className="truncate max-w-[150px] font-medium">{f.name}</span>
                     <span className="opacity-60 text-[10px]">({f.size})</span>
                   </div>
@@ -90,7 +90,7 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, onSuggestionC
                 </div>
                 <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
                   <div
-                    className="bg-indigo-600 h-full rounded-full transition-all duration-500"
+                    className="bg-[#7C3AED] h-full rounded-full transition-all duration-500"
                     style={{ width: `${hypothesis.confidenceScore}%` }}
                   />
                 </div>
@@ -160,7 +160,7 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, onSuggestionC
                 <button
                   key={index}
                   onClick={() => onSuggestionClick(s)}
-                  className="text-xs font-semibold px-3 py-1.5 bg-slate-50 text-indigo-600 border border-indigo-50 hover:border-indigo-100 hover:bg-indigo-50/40 rounded-full transition-all duration-150 cursor-pointer"
+                  className="text-xs font-semibold px-3 py-1.5 bg-slate-50 text-[#7C3AED] border border-purple-100 hover:border-purple-200 hover:bg-[#F3E8FF]/40 rounded-full transition-all duration-150 cursor-pointer"
                 >
                   {s}
                 </button>

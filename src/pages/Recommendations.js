@@ -1,0 +1,16 @@
+import { jsx as _jsx, jsxs as _jsxs } from "react/jsx-runtime";
+import { Lightbulb, AlertTriangle, RefreshCw, } from 'lucide-react';
+import { useRecommendations } from '../hooks/useRecommendations';
+import { RecommendationCard } from '../components/RecommendationCard';
+export default function RecommendationsPage() {
+    const { recommendations, filter, setFilter, isLoading, isError, error, applyRecommendation, } = useRecommendations();
+    if (isLoading) {
+        return (_jsxs("div", { className: "space-y-6", children: [_jsx("div", { className: "flex justify-between items-center h-10 bg-slate-100 rounded-lg animate-pulse w-full max-w-sm" }), _jsx("div", { className: "grid grid-cols-1 md:grid-cols-2 gap-6", children: [...Array(4)].map((_, i) => (_jsx("div", { className: "h-48 bg-white rounded-xl border border-slate-100 animate-pulse shadow-sm" }, i))) })] }));
+    }
+    if (isError) {
+        return (_jsxs("div", { className: "bg-rose-50 border border-rose-100 rounded-xl p-6 text-center max-w-2xl mx-auto my-12", children: [_jsx(AlertTriangle, { className: "w-12 h-12 text-rose-500 mx-auto mb-4" }), _jsx("h3", { className: "text-lg font-bold text-slate-800 mb-2", children: "Error Loading Recommendations" }), _jsx("p", { className: "text-sm text-slate-600 mb-6", children: error?.message || 'An unexpected error occurred.' }), _jsxs("button", { onClick: () => window.location.reload(), className: "flex items-center gap-1.5 px-4 py-2 bg-[#7C3AED] hover:bg-[#6D28D9] text-white rounded-lg text-xs font-semibold mx-auto transition-colors cursor-pointer", children: [_jsx(RefreshCw, { className: "w-3.5 h-3.5" }), "Reload Page"] })] }));
+    }
+    return (_jsxs("div", { className: "space-y-8 pb-12", children: [_jsxs("div", { children: [_jsx("h1", { className: "text-2xl font-extrabold text-[#111827] tracking-tight", children: "Recommendations" }), _jsx("p", { className: "text-xs text-[#6B7280] mt-1", children: "Growth strategies and conversion optimization playbooks suggested by AI models" })] }), _jsxs("div", { className: "flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white p-3.5 rounded-[20px] border border-[#E5E7EB] shadow-sm", children: [_jsx("div", { className: "flex flex-wrap gap-2", children: ['All', 'High Impact', 'Quick Win', 'Ongoing'].map((f) => (_jsx("button", { onClick: () => setFilter(f), className: `h-[36px] px-4 rounded-[8px] text-xs font-bold transition-all border cursor-pointer ${filter === f
+                                ? 'bg-[#7C3AED] border-[#7C3AED] text-white shadow-sm shadow-purple-100'
+                                : 'bg-slate-50 border-[#E5E7EB] text-[#6B7280] hover:bg-[#F3E8FF] hover:text-[#7C3AED]'}`, children: f === 'All' ? 'All Opportunities' : f }, f))) }), _jsxs("div", { className: "flex items-center gap-1.5 text-xs font-bold text-[#6B7280] bg-[#F3E8FF] text-[#7C3AED] px-3 py-1.5 rounded-full border border-purple-100", children: [_jsx(Lightbulb, { className: "w-3.5 h-3.5 text-amber-500" }), _jsxs("span", { children: ["Active Opportunities: ", recommendations.length] })] })] }), _jsx("div", { className: "grid grid-cols-1 md:grid-cols-2 gap-6", children: recommendations.map((rec) => (_jsx(RecommendationCard, { recommendation: rec, onApply: applyRecommendation }, rec.id))) })] }));
+}

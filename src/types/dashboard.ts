@@ -52,6 +52,14 @@ export interface AIInsightSummary {
   recommendationLink: string;
 }
 
+export interface RecentInsight {
+  id: string;
+  title: string;
+  description: string;
+  priority: 'High' | 'Medium' | 'Low';
+  expectedImpact: string;
+}
+
 export interface DashboardData {
   kpis: KPICardData[];
   performanceData: PerformanceOverTimePoint[];
@@ -59,4 +67,5 @@ export interface DashboardData {
   opportunities: TopOpportunity[];
   recentExperiments: RecentExperiment[];
   insightSummary: AIInsightSummary;
+  recentInsights: RecentInsight[];
 }

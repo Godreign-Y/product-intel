@@ -194,4 +194,27 @@ export const mockDashboardData: DashboardData = {
     ],
     recommendationLink: '/recommendations?ref=insight',
   },
+  recentInsights: [
+    {
+      id: 'ins_1',
+      title: 'Checkout Friction Detected',
+      description: 'Mobile checkout drop-off rates spike at the shipping address input field, particularly for guest users.',
+      priority: 'High',
+      expectedImpact: '+5.4% Conversion',
+    },
+    {
+      id: 'ins_2',
+      title: 'AOV Lift Opportunity',
+      description: 'Dynamic bundling on high-margin apparel items shows strong engagement during checkout simulations.',
+      priority: 'Medium',
+      expectedImpact: '+$14 AOV Increase',
+    },
+    {
+      id: 'ins_3',
+      title: 'Retention Warning',
+      description: 'Early churn indicators suggest second-purchase velocity has slowed by 4% for Q2 cohorts.',
+      priority: 'Low',
+      expectedImpact: '+2.8% LTV Improvement',
+    },
+  ],
 };
