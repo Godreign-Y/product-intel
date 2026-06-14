@@ -1,0 +1,5 @@
+--Use only UV for package management
+--Use Alembic for tracking db schema Management
+--Use Neon db - cloud postgres. URL is shared in grp. 
+--Lets create a design.md for common design template
+--Super modular and Abstract code only.
