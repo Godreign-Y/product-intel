@@ -1,3 +1,13 @@
+/**
+ * Settings Page.
+ *
+ * Provides user configuration for profile, notifications, theme,
+ * data connections, API status, and model settings.
+ * API connection config comes from environment variables (read-only).
+ *
+ * @module Settings
+ */
+
 import React, { useState, useEffect } from 'react';
 import {
   User,
@@ -8,10 +18,10 @@ import {
   Sliders,
   CheckCircle,
   RefreshCw,
-  Plus,
   X,
 } from 'lucide-react';
 import { useSettings } from '../hooks/useSettings';
+import { getApiBaseUrl, getApiKey } from '../utils/api-client';
 import { SystemSettings } from '../types/settings';
 
 export default function SettingsPage() {
@@ -26,8 +36,8 @@ export default function SettingsPage() {
 
   const [form, setForm] = useState<SystemSettings | null>(null);
   const [activeTab, setActiveTab] = useState<'profile' | 'notifications' | 'theme' | 'data' | 'api' | 'model'>('profile');
-  
-  // Custom states for missing fields
+
+  // Custom states for profile/notification preferences (frontend-only)
   const [profile, setProfile] = useState({
     name: 'Aarav R.',
     email: 'aarav.r@intelligenceos.com',
@@ -55,13 +65,6 @@ export default function SettingsPage() {
       </div>
     );
   }
-
-  const handleToggleFastApi = () => {
-    setForm({
-      ...form,
-      enableFastApi: !form.enableFastApi,
-    });
-  };
 
   const handleFieldChange = (field: keyof SystemSettings, val: any) => {
     setForm({
@@ -93,6 +96,11 @@ export default function SettingsPage() {
     saveSettings(form);
   };
 
+  // Read env-based API config (read-only display)
+  const envApiUrl = getApiBaseUrl();
+  const envApiKey = getApiKey();
+  const maskedKey = envApiKey ? `${envApiKey.substring(0, 8)}${'•'.repeat(Math.max(0, envApiKey.length - 8))}` : '(not set)';
+
   return (
     <div className="space-y-6 pb-12 max-w-4xl">
       <div>
@@ -107,7 +115,7 @@ export default function SettingsPage() {
           { id: 'notifications', label: 'Notifications', icon: Bell },
           { id: 'theme', label: 'Theme', icon: Sun },
           { id: 'data', label: 'Data Connections', icon: Database },
-          { id: 'api', label: 'API Integrations', icon: Cpu },
+          { id: 'api', label: 'API Status', icon: Cpu },
           { id: 'model', label: 'Model Settings', icon: Sliders },
         ].map((t) => {
           const Icon = t.icon;
@@ -132,7 +140,7 @@ export default function SettingsPage() {
       {/* Active Tab Content Card */}
       <div className="bg-white rounded-[20px] border border-[#E5E7EB] p-6 shadow-sm min-h-[300px] flex flex-col justify-between">
         <form onSubmit={handleSaveAll} className="space-y-6">
-          
+
           {/* Profile Tab */}
           {activeTab === 'profile' && (
             <div className="space-y-5">
@@ -289,97 +297,68 @@ export default function SettingsPage() {
             </div>
           )}
 
-          {/* API Integrations Tab */}
+          {/* API Status Tab — env-based, read-only config */}
           {activeTab === 'api' && (
             <div className="space-y-5">
               <div className="border-b border-slate-50 pb-3">
-                <h3 className="text-sm font-bold text-[#111827]">API Integrations Settings</h3>
-                <p className="text-xs text-[#6B7280] mt-0.5">Toggle between static mock data and live FastAPI backend</p>
+                <h3 className="text-sm font-bold text-[#111827]">Backend API Connection</h3>
+                <p className="text-xs text-[#6B7280] mt-0.5">Configuration from environment variables (read-only)</p>
               </div>
 
-              {/* Toggle switch */}
-              <div className="flex justify-between items-center bg-slate-50/50 p-4 rounded-xl border border-slate-50">
-                <div>
-                  <span className="text-xs font-bold text-[#111827]">Enable FastAPI Integration Mode</span>
-                  <p className="text-[10px] text-[#6B7280] mt-0.5">Redirect queries to a local or production FastAPI endpoint</p>
-                </div>
-                <button
-                  type="button"
-                  onClick={handleToggleFastApi}
-                  className={`w-11 h-6 flex items-center rounded-full p-1 cursor-pointer transition-colors duration-200 focus:outline-none ${
-                    form.enableFastApi ? 'bg-[#7C3AED]' : 'bg-slate-200'
-                  }`}
-                >
-                  <div
-                    className={`bg-white w-4 h-4 rounded-full shadow transform transition-transform duration-200 ${
-                      form.enableFastApi ? 'translate-x-5' : 'translate-x-0'
-                    }`}
-                  />
-                </button>
-              </div>
-
-              {/* Input parameters */}
+              {/* Read-only env config display */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="text-[10px] font-bold text-[#6B7280] uppercase block mb-1">
-                    FastAPI Base URL
+                    API Base URL <span className="text-[#9CA3AF]">(from .env)</span>
                   </label>
-                  <input
-                    type="url"
-                    placeholder="http://localhost:8000"
-                    value={form.fastapiUrl}
-                    onChange={(e) => handleFieldChange('fastapiUrl', e.target.value)}
-                    disabled={!form.enableFastApi}
-                    className="w-full h-[44px] px-3.5 border border-[#E5E7EB] disabled:bg-slate-50/50 disabled:text-[#9CA3AF] rounded-[12px] text-xs font-semibold focus:outline-none focus:border-[#7C3AED]"
-                  />
+                  <div className="w-full h-[44px] px-3.5 border border-[#E5E7EB] bg-slate-50/50 rounded-[12px] text-xs font-semibold text-[#111827] flex items-center">
+                    {envApiUrl}
+                  </div>
                 </div>
 
                 <div>
                   <label className="text-[10px] font-bold text-[#6B7280] uppercase block mb-1">
-                    API Auth Token
+                    API Auth Token <span className="text-[#9CA3AF]">(from .env)</span>
                   </label>
-                  <input
-                    type="password"
-                    placeholder="pi_live_..."
-                    value={form.apiKey}
-                    onChange={(e) => handleFieldChange('apiKey', e.target.value)}
-                    disabled={!form.enableFastApi}
-                    className="w-full h-[44px] px-3.5 border border-[#E5E7EB] disabled:bg-slate-50/50 disabled:text-[#9CA3AF] rounded-[12px] text-xs font-semibold focus:outline-none focus:border-[#7C3AED]"
-                  />
+                  <div className="w-full h-[44px] px-3.5 border border-[#E5E7EB] bg-slate-50/50 rounded-[12px] text-xs font-semibold text-[#9CA3AF] flex items-center font-mono">
+                    {maskedKey}
+                  </div>
                 </div>
               </div>
 
-              {/* Testing Connection */}
-              {form.enableFastApi && (
-                <div className="flex justify-between items-center p-3 border border-slate-100 rounded-xl bg-slate-50/30">
-                  <div className="flex items-center gap-2">
-                    <span className="text-[10px] uppercase font-bold text-[#9CA3AF]">Health Check:</span>
-                    {testStatus === 'Connected' ? (
-                      <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-100">
-                        Connected
-                      </span>
-                    ) : testStatus === 'Disconnected' ? (
-                      <span className="text-[10px] font-bold text-rose-600 bg-rose-50 px-2 py-0.5 rounded-full border border-rose-100">
-                        Disconnected
-                      </span>
-                    ) : testStatus === 'testing' ? (
-                      <span className="text-[10px] font-bold text-slate-500 bg-slate-50 px-2 py-0.5 rounded-full">
-                        Verifying...
-                      </span>
-                    ) : (
-                      <span className="text-[10px] font-bold text-slate-400">Not Tested</span>
-                    )}
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => testConnection(form.fastapiUrl, form.apiKey)}
-                    disabled={testStatus === 'testing'}
-                    className="h-8 px-3.5 bg-white border border-[#E5E7EB] hover:bg-slate-50 text-[#111827] text-[10px] font-bold rounded-lg cursor-pointer transition-colors"
-                  >
-                    Test Connection
-                  </button>
+              <p className="text-[10px] text-[#9CA3AF] italic">
+                To change these values, update <code className="bg-slate-100 px-1 rounded text-[#7C3AED]">frontend/.env</code> and restart the dev server.
+              </p>
+
+              {/* Health Check */}
+              <div className="flex justify-between items-center p-3 border border-slate-100 rounded-xl bg-slate-50/30">
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] uppercase font-bold text-[#9CA3AF]">Health Check:</span>
+                  {testStatus === 'Connected' ? (
+                    <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-100">
+                      Connected
+                    </span>
+                  ) : testStatus === 'Disconnected' ? (
+                    <span className="text-[10px] font-bold text-rose-600 bg-rose-50 px-2 py-0.5 rounded-full border border-rose-100">
+                      Disconnected
+                    </span>
+                  ) : testStatus === 'testing' ? (
+                    <span className="text-[10px] font-bold text-slate-500 bg-slate-50 px-2 py-0.5 rounded-full">
+                      Verifying...
+                    </span>
+                  ) : (
+                    <span className="text-[10px] font-bold text-slate-400">Not Tested</span>
+                  )}
                 </div>
-              )}
+                <button
+                  type="button"
+                  onClick={() => testConnection()}
+                  disabled={testStatus === 'testing'}
+                  className="h-8 px-3.5 bg-white border border-[#E5E7EB] hover:bg-slate-50 text-[#111827] text-[10px] font-bold rounded-lg cursor-pointer transition-colors"
+                >
+                  Test Connection
+                </button>
+              </div>
             </div>
           )}
 
@@ -388,26 +367,7 @@ export default function SettingsPage() {
             <div className="space-y-5">
               <div className="border-b border-slate-50 pb-3">
                 <h3 className="text-sm font-bold text-[#111827]">Model Configuration</h3>
-                <p className="text-xs text-[#6B7280] mt-0.5">Control mock network delay values and ML training confidence ranges</p>
-              </div>
-
-              {/* Latency slider */}
-              <div>
-                <div className="flex justify-between items-center mb-2">
-                  <label className="text-[10px] font-bold text-[#6B7280] uppercase tracking-wider">
-                    Simulated Network Latency (Delay)
-                  </label>
-                  <span className="text-xs font-bold text-[#7C3AED]">{form.mockDelay} ms</span>
-                </div>
-                <input
-                  type="range"
-                  min="0"
-                  max="3000"
-                  step="100"
-                  value={form.mockDelay}
-                  onChange={(e) => handleFieldChange('mockDelay', parseInt(e.target.value))}
-                  className="w-full h-1.5 bg-slate-100 rounded-lg appearance-none cursor-pointer accent-[#7C3AED]"
-                />
+                <p className="text-xs text-[#6B7280] mt-0.5">ML training confidence ranges and forecast horizon settings</p>
               </div>
 
               {/* Confidence Interval range */}
@@ -417,6 +377,16 @@ export default function SettingsPage() {
                   <option>95% Confidence Interval</option>
                   <option>90% Confidence Interval</option>
                   <option>99% Confidence Interval</option>
+                </select>
+              </div>
+
+              {/* Default forecast horizon */}
+              <div className="max-w-xs">
+                <label className="text-[10px] font-bold text-[#6B7280] uppercase block mb-1">Default Forecast Horizon</label>
+                <select className="w-full h-[44px] px-3 border border-[#E5E7EB] rounded-[12px] text-xs font-semibold focus:outline-none focus:border-[#7C3AED] bg-white">
+                  <option>30 Days</option>
+                  <option>60 Days</option>
+                  <option>90 Days</option>
                 </select>
               </div>
             </div>

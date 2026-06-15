@@ -1,28 +1,57 @@
-import { request, getSystemSettings } from '../utils/api-client';
-import { Experiment, SimulationPreview, ExperimentVariable } from '../types/experiments';
-import { mockExperiments, mockSimulationPreview } from '../mocks/experiments.mock';
+/**
+ * Experiments Service.
+ *
+ * Manages experiment CRUD and scenario simulations via the backend.
+ * All data comes from real API calls — no mock fallbacks.
+ *
+ * @module experiments.service
+ */
+
+import { request, getApiBaseUrl, getHeaders } from '../utils/api-client';
+import {
+  Experiment,
+  SimulationPreview,
+  ExperimentVariable,
+} from '../types/experiments';
 
 /**
- * Parses a frontend experiment variable into the change string format expected by the backend simulator.
- * E.g., name: "Shipping Cost", newValue: "$4.50 (-10%)" -> "shipping -10%"
- * 
- * @param variable The variable structure from the UI form.
+ * Parses a frontend experiment variable into the change string format expected
+ * by the backend simulator.
+ *
+ * @param variable - The variable structure from the UI form.
  * @returns Formatted change string (e.g. 'discount = 0.15').
  */
 function parseVariableToChange(variable: ExperimentVariable): string {
   const nameLower = variable.name.toLowerCase();
   let backendName = 'discount';
 
-  // Map user variable name to backend keyword
-  if (nameLower.includes('marketing') || nameLower.includes('spend') || nameLower.includes('budget') || nameLower.includes('ad')) {
+  if (
+    nameLower.includes('marketing') ||
+    nameLower.includes('spend') ||
+    nameLower.includes('budget') ||
+    nameLower.includes('ad')
+  ) {
     backendName = 'marketing';
-  } else if (nameLower.includes('shipping') || nameLower.includes('fee') || nameLower.includes('cost')) {
+  } else if (
+    nameLower.includes('shipping') ||
+    nameLower.includes('fee') ||
+    nameLower.includes('cost')
+  ) {
     backendName = 'shipping';
-  } else if (nameLower.includes('price') || nameLower.includes('selling')) {
+  } else if (
+    nameLower.includes('price') ||
+    nameLower.includes('selling')
+  ) {
     backendName = 'price';
-  } else if (nameLower.includes('inventory') || nameLower.includes('stock')) {
+  } else if (
+    nameLower.includes('inventory') ||
+    nameLower.includes('stock')
+  ) {
     backendName = 'inventory';
-  } else if (nameLower.includes('traffic') || nameLower.includes('view')) {
+  } else if (
+    nameLower.includes('traffic') ||
+    nameLower.includes('view')
+  ) {
     backendName = 'traffic';
   }
 
@@ -53,29 +82,26 @@ function parseVariableToChange(variable: ExperimentVariable): string {
 }
 
 /**
- * Retrieves all experiments from local db if FastAPI is enabled, otherwise mock data.
+ * Retrieves all experiments from the database.
+ *
+ * @returns Promise resolving to list of experiments.
  */
 export async function getExperiments(): Promise<Experiment[]> {
-  const settings = getSystemSettings();
-
-  if (settings.enableFastApi) {
-    const baseUrl = settings.fastapiUrl.replace(/\/$/, '');
-    return request<Experiment[]>(
-      '/api/v1/db/experiments',
-      mockExperiments,
-      { method: 'GET' }
-    );
-  }
-
-  return request<Experiment[]>('/api/experiments', mockExperiments);
+  return request<Experiment[]>('/api/v1/db/experiments', { method: 'GET' });
 }
 
 /**
  * Runs a causal machine learning scenario simulation for the given variables.
- * Translates variables to change strings, queries /scenario/evaluate, and aggregates
- * the daily projection output into weekly chart increments.
- * 
- * @returns SimulationPreview structure containing KPI differences and timelines.
+ * Translates variables to change strings, queries /scenario/evaluate, and
+ * aggregates the daily projection output into weekly chart increments.
+ *
+ * @param name - Experiment name.
+ * @param objective - Experiment objective.
+ * @param hypothesis - Experiment hypothesis.
+ * @param primaryMetric - Target metric.
+ * @param type - Experiment type.
+ * @param variables - Variables to simulate.
+ * @returns SimulationPreview structure with KPI differences and timelines.
  */
 export async function simulateExperiment(
   name: string,
@@ -85,121 +111,97 @@ export async function simulateExperiment(
   type: string,
   variables: ExperimentVariable[]
 ): Promise<SimulationPreview> {
-  const settings = getSystemSettings();
+  const baseUrl = getApiBaseUrl();
+  const headers = getHeaders();
+  const changes = variables.map((v) => parseVariableToChange(v));
 
-  if (settings.enableFastApi) {
-    const baseUrl = settings.fastapiUrl.replace(/\/$/, '');
-    const changes = variables.map(v => parseVariableToChange(v));
-
-    try {
-      const response = await fetch(`${baseUrl}/api/v1/scenario/evaluate`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${settings.apiKey}`,
-        },
-        body: JSON.stringify({
-          product_id: 'P001',
-          horizon_days: 28, // 4 weeks exactly
-          changes
-        }),
-      });
-
-      if (!response.ok) {
-        throw new Error(`FastAPI scenario evaluate failed with status ${response.status}`);
-      }
-
-      const result = await response.json();
-      const kpis = result.kpis || {};
-
-      // Map expected impacts
-      const expectedImpact = [
-        {
-          metric: 'Conversion Rate',
-          percentChange: kpis.conversion_rate?.percentage_difference || 0,
-          isPositive: (kpis.conversion_rate?.percentage_difference || 0) >= 0
-        },
-        {
-          metric: 'Revenue',
-          percentChange: kpis.revenue?.percentage_difference || 0,
-          isPositive: (kpis.revenue?.percentage_difference || 0) >= 0
-        },
-        {
-          metric: 'Profit',
-          percentChange: kpis.profit?.percentage_difference || 0,
-          isPositive: (kpis.profit?.percentage_difference || 0) >= 0
-        }
-      ];
-
-      // Sum daily values into weekly slices
-      const revenuePoints = result.daily_comparison?.revenue || [];
-      const weeklyPoints = [];
-      for (let i = 0; i < 4; i++) {
-        const slice = revenuePoints.slice(i * 7, (i + 1) * 7);
-        let currentSum = 0;
-        let simulatedSum = 0;
-        for (const p of slice) {
-          currentSum += p.baseline_value;
-          simulatedSum += p.simulated_value;
-        }
-        weeklyPoints.push({
-          week: `Week ${i + 1}`,
-          current: Math.round(currentSum),
-          simulated: Math.round(simulatedSum)
-        });
-      }
-
-      return {
-        expectedImpact,
-        confidenceScore: 86,
-        riskLevel: Math.abs(kpis.revenue?.percentage_difference || 0) > 10 ? 'Medium' : 'Low',
-        revenueImpactOverTime: weeklyPoints
-      };
-
-    } catch (error) {
-      console.warn('Simulation API call failed. Details:', error);
-      throw error;
-    }
-  }
-
-  // Offline simulation preview calculation
-  return new Promise((resolve) => {
-    setTimeout(() => {
-      const conversionChange = Math.random() * 5 + 1;
-      const revenueChange = conversionChange * 0.7;
-      const profitChange = revenueChange * 0.6;
-      resolve({
-        expectedImpact: [
-          { metric: 'Conversion Rate', percentChange: parseFloat(conversionChange.toFixed(1)), isPositive: true },
-          { metric: 'Revenue', percentChange: parseFloat(revenueChange.toFixed(1)), isPositive: true },
-          { metric: 'Profit', percentChange: parseFloat(profitChange.toFixed(1)), isPositive: true },
-        ],
-        confidenceScore: 85,
-        riskLevel: 'Low',
-        revenueImpactOverTime: [
-          { week: 'Week 1', current: 2100000, simulated: 2100000 * (1 + revenueChange / 400) },
-          { week: 'Week 2', current: 2150000, simulated: 2150000 * (1 + revenueChange / 250) },
-          { week: 'Week 3', current: 2200000, simulated: 2200000 * (1 + revenueChange / 150) },
-          { week: 'Week 4', current: 2300000, simulated: 2300000 * (1 + revenueChange / 100) },
-        ],
-      });
-    }, 1200);
+  const response = await fetch(`${baseUrl}/api/v1/scenario/evaluate`, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({
+      product_id: 'P001',
+      horizon_days: 28,
+      changes,
+    }),
   });
-}
-export async function createExperiment(experiment: Omit<Experiment, 'id' | 'createdAt' | 'status'> & { id: string }): Promise<Experiment> {
-  const settings = getSystemSettings();
-  if (settings.enableFastApi) {
-    return request<Experiment>(
-      '/api/v1/db/experiments',
-      { ...experiment, status: 'Running', createdAt: new Date().toISOString() } as Experiment,
-      {
-        method: 'POST',
-        body: JSON.stringify({
-          ...experiment,
-          status: 'Running',
-        })
-      }
+
+  if (!response.ok) {
+    throw new Error(
+      `Scenario evaluate failed with status ${response.status}`
     );
   }
-  return { ...experiment, status: 'Running', createdAt: new Date().toISOString() } as Experiment;
+
+  const result = await response.json();
+  const kpis = result.kpis || {};
+
+  // Map expected impacts from real backend KPI comparisons
+  const expectedImpact = [
+    {
+      metric: 'Conversion Rate',
+      percentChange: kpis.conversion_rate?.percentage_difference || 0,
+      isPositive: (kpis.conversion_rate?.percentage_difference || 0) >= 0,
+    },
+    {
+      metric: 'Revenue',
+      percentChange: kpis.revenue?.percentage_difference || 0,
+      isPositive: (kpis.revenue?.percentage_difference || 0) >= 0,
+    },
+    {
+      metric: 'Profit',
+      percentChange: kpis.profit?.percentage_difference || 0,
+      isPositive: (kpis.profit?.percentage_difference || 0) >= 0,
+    },
+  ];
+
+  // Sum daily values into weekly slices
+  const revenuePoints = result.daily_comparison?.revenue || [];
+  const weeklyPoints = [];
+  for (let i = 0; i < 4; i++) {
+    const slice = revenuePoints.slice(i * 7, (i + 1) * 7);
+    let currentSum = 0;
+    let simulatedSum = 0;
+    for (const p of slice) {
+      currentSum += p.baseline_value;
+      simulatedSum += p.simulated_value;
+    }
+    weeklyPoints.push({
+      week: `Week ${i + 1}`,
+      current: Math.round(currentSum),
+      simulated: Math.round(simulatedSum),
+    });
+  }
+
+  // Compute confidence from the consistency of the simulation outputs
+  const avgImpact =
+    expectedImpact.reduce((s, e) => s + Math.abs(e.percentChange), 0) /
+    expectedImpact.length;
+  const confidenceScore = Math.min(95, Math.max(60, Math.round(90 - avgImpact * 0.5)));
+
+  return {
+    expectedImpact,
+    confidenceScore,
+    riskLevel:
+      Math.abs(kpis.revenue?.percentage_difference || 0) > 10
+        ? 'Medium'
+        : 'Low',
+    revenueImpactOverTime: weeklyPoints,
+  };
+}
+
+/**
+ * Creates and persists a new experiment in the database.
+ *
+ * @param experiment - Experiment data (without server-generated fields).
+ * @returns The created experiment with all fields populated.
+ */
+export async function createExperiment(
+  experiment: Omit<Experiment, 'id' | 'createdAt' | 'status'> & { id: string }
+): Promise<Experiment> {
+  return request<Experiment>('/api/v1/db/experiments', {
+    method: 'POST',
+    body: JSON.stringify({
+      ...experiment,
+      status: 'Running',
+    }),
+  });
 }

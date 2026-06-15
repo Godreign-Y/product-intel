@@ -66,6 +66,8 @@ export interface DashboardData {
   anomalies: Anomaly[];
   opportunities: TopOpportunity[];
   recentExperiments: RecentExperiment[];
+  /** Computed AI confidence score (0–100) derived from real trend consistency. */
+  aiConfidence: number;
   insightSummary: AIInsightSummary;
   recentInsights: RecentInsight[];
 }

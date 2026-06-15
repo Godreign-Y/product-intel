@@ -300,7 +300,7 @@ export default function DashboardPage() {
           {/* Confidence Score */}
           <div className="flex flex-col items-center justify-center lg:pl-6 text-center">
             <span className="text-[10px] font-bold text-[#9CA3AF] uppercase tracking-wider block">AI Confidence</span>
-            <span className="text-3xl font-extrabold text-[#7C3AED] mt-1 block">94%</span>
+            <span className="text-3xl font-extrabold text-[#7C3AED] mt-1 block">{data.aiConfidence}%</span>
             <div className="flex items-center gap-1 mt-1 bg-purple-50 text-[#7C3AED] px-2 py-0.5 rounded-full text-[9px] font-bold border border-purple-100">
               <Info className="w-2.5 h-2.5" /> High Precision
             </div>

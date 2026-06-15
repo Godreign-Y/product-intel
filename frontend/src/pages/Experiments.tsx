@@ -15,6 +15,19 @@ import { ExperimentCard } from '../components/ExperimentCard';
 import { SimulationChart } from '../components/Charts';
 import { ExperimentVariable } from '../types/experiments';
 
+/**
+ * Catalog of variables the backend scenario simulator supports.
+ * Maps display names to backend variable keys with typical baseline values.
+ */
+const VARIABLE_CATALOG = [
+  { label: 'Discount %', backendKey: 'discount', baseline: '15%' },
+  { label: 'Marketing Spend', backendKey: 'marketing', baseline: '$8,500' },
+  { label: 'Shipping Cost', backendKey: 'shipping', baseline: '$69' },
+  { label: 'Selling Price', backendKey: 'price', baseline: '$720' },
+  { label: 'Inventory', backendKey: 'inventory', baseline: '2,380' },
+  { label: 'Traffic', backendKey: 'traffic', baseline: '3,800' },
+];
+
 export default function ExperimentsPage() {
   const {
     experiments,
@@ -34,7 +47,7 @@ export default function ExperimentsPage() {
   const [expectedOutcome, setExpectedOutcome] = useState('');
   const [type, setType] = useState<'A/B Test' | 'Multi-variant' | 'Simulation'>('Simulation');
   const [variables, setVariables] = useState<ExperimentVariable[]>([
-    { id: '1', name: 'Shipping Cost', currentValue: '$5.00', newValue: '$4.50 (-10%)' },
+    { id: '1', name: 'Discount %', currentValue: '15%', newValue: '+5%' },
   ]);
 
   const addVariable = () => {
@@ -83,15 +96,36 @@ export default function ExperimentsPage() {
     setObjective('');
     setHypothesis('');
     setExpectedOutcome('');
-    setVariables([{ id: '1', name: 'Shipping Cost', currentValue: '$5.00', newValue: '$4.50 (-10%)' }]);
+    setVariables([{ id: '1', name: 'Discount %', currentValue: '15%', newValue: '+5%' }]);
   };
 
-  // Aggregated Stat Calculations (Mocked)
+  // Aggregated Stat Calculations — computed from real experiments
+  const completedExps = experiments.filter((e) => e.status === 'Completed');
+  const successRate = experiments.length > 0
+    ? `${Math.round((completedExps.length / experiments.length) * 100)}%`
+    : '—';
+  const avgLift = completedExps.length > 0
+    ? `+${(
+        completedExps.reduce((sum, e) => {
+          const impact = e.simulationPreview?.expectedImpact?.[0]?.percentChange || 0;
+          return sum + impact;
+        }, 0) / completedExps.length
+      ).toFixed(1)}%`
+    : '—';
+  const totalRevImpact = completedExps.reduce((sum, e) => {
+    const revImpact = e.simulationPreview?.expectedImpact?.find(
+      (i: any) => i.metric === 'Revenue'
+    )?.percentChange || 0;
+    return sum + revImpact;
+  }, 0);
+  const revenueGenerated = totalRevImpact > 0
+    ? `+$${Math.round(totalRevImpact * 10)}K`
+    : '—';
   const stats = {
     total: experiments.length,
-    successRate: '78%',
-    avgLift: '+4.6%',
-    revenueGenerated: '+$340K',
+    successRate,
+    avgLift,
+    revenueGenerated,
   };
 
   return (
@@ -227,15 +261,24 @@ export default function ExperimentsPage() {
                 {variables.map((v) => (
                   <div key={v.id} className="flex flex-col md:flex-row gap-3 items-end bg-slate-50/50 p-3 rounded-[12px] border border-[#E5E7EB]">
                     <div className="flex-grow min-w-0">
-                      <span className="text-[9px] text-[#9CA3AF] font-bold uppercase">Variable Name</span>
-                      <input
-                        type="text"
-                        placeholder="e.g. Number of steps"
+                      <span className="text-[9px] text-[#9CA3AF] font-bold uppercase">Variable</span>
+                      <select
                         value={v.name}
-                        onChange={(e) => handleVariableChange(v.id, 'name', e.target.value)}
+                        onChange={(e) => {
+                          const selected = VARIABLE_CATALOG.find((c) => c.label === e.target.value);
+                          handleVariableChange(v.id, 'name', e.target.value);
+                          if (selected) {
+                            handleVariableChange(v.id, 'currentValue', selected.baseline);
+                          }
+                        }}
                         required
-                        className="w-full bg-white h-9 px-3 border border-[#E5E7EB] rounded-lg text-xs focus:outline-none focus:border-[#7C3AED]"
-                      />
+                        className="w-full bg-white h-9 px-3 border border-[#E5E7EB] rounded-lg text-xs focus:outline-none focus:border-[#7C3AED] cursor-pointer"
+                      >
+                        <option value="">Select variable...</option>
+                        {VARIABLE_CATALOG.map((c) => (
+                          <option key={c.backendKey} value={c.label}>{c.label}</option>
+                        ))}
+                      </select>
                     </div>
                     <div className="w-full md:w-24">
                       <span className="text-[9px] text-[#9CA3AF] font-bold uppercase">Current</span>
@@ -323,22 +366,18 @@ export default function ExperimentsPage() {
                   </button>
                 </div>
 
-                {/* Simulation Output Cards */}
+                {/* Simulation Output Cards — from real simulation data */}
                 <div className="space-y-3.5">
                   <span className="text-[10px] font-bold text-[#9CA3AF] uppercase tracking-wider block">Predicted Outcomes</span>
                   <div className="grid grid-cols-3 gap-3">
-                    <div className="bg-emerald-50/50 border border-emerald-100 p-2.5 rounded-xl text-center">
-                      <span className="text-[9px] font-bold text-[#6B7280] uppercase tracking-tight block">Revenue</span>
-                      <span className="text-xs font-extrabold text-[#10B981] mt-1 block">+6.2% Impact</span>
-                    </div>
-                    <div className="bg-emerald-50/50 border border-emerald-100 p-2.5 rounded-xl text-center">
-                      <span className="text-[9px] font-bold text-[#6B7280] uppercase tracking-tight block">Conversion</span>
-                      <span className="text-xs font-extrabold text-[#10B981] mt-1 block">+5.4% Impact</span>
-                    </div>
-                    <div className="bg-emerald-50/50 border border-emerald-100 p-2.5 rounded-xl text-center">
-                      <span className="text-[9px] font-bold text-[#6B7280] uppercase tracking-tight block">Profit</span>
-                      <span className="text-xs font-extrabold text-[#10B981] mt-1 block">+4.8% Impact</span>
-                    </div>
+                    {activePreview.expectedImpact.map((impact, idx) => (
+                      <div key={idx} className={`${impact.isPositive ? 'bg-emerald-50/50 border-emerald-100' : 'bg-rose-50/50 border-rose-100'} border p-2.5 rounded-xl text-center`}>
+                        <span className="text-[9px] font-bold text-[#6B7280] uppercase tracking-tight block">{impact.metric}</span>
+                        <span className={`text-xs font-extrabold mt-1 block ${impact.isPositive ? 'text-[#10B981]' : 'text-[#EF4444]'}`}>
+                          {impact.isPositive ? '+' : ''}{impact.percentChange.toFixed(1)}% Impact
+                        </span>
+                      </div>
+                    ))}
                   </div>
                 </div>
 

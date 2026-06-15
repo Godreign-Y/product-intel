@@ -1,149 +1,123 @@
-import { request, getSystemSettings } from '../utils/api-client';
+/**
+ * AI Workspace Service.
+ *
+ * Manages chat sessions, message history, and AI agent queries via the backend.
+ * All data comes from real API calls — no mock fallbacks.
+ *
+ * @module ai-workspace.service
+ */
+
+import { getApiBaseUrl, getHeaders } from '../utils/api-client';
 import { ChatSession, ChatMessage } from '../types/ai-workspace';
-import { mockChatSessions, mockSuggestedQuestions } from '../mocks/ai-workspace.mock';
 
 /**
  * Retrieves all chat sessions from the database.
  * If no session exists, automatically creates a default intelligence session.
+ *
+ * @returns Promise resolving to list of chat sessions.
  */
 export async function getChatSessions(): Promise<ChatSession[]> {
-  const settings = getSystemSettings();
+  const baseUrl = getApiBaseUrl();
+  const headers = getHeaders();
 
-  if (settings.enableFastApi) {
-    const baseUrl = settings.fastapiUrl.replace(/\/$/, '');
-    try {
-      const response = await fetch(`${baseUrl}/api/v1/db/chat/sessions`, {
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${settings.apiKey}`,
-        },
-      });
+  const response = await fetch(`${baseUrl}/api/v1/db/chat/sessions`, {
+    method: 'GET',
+    headers: {
+      Authorization: headers['Authorization'],
+    },
+  });
 
-      if (!response.ok) {
-        throw new Error('Failed to retrieve chat sessions from DB');
-      }
+  if (!response.ok) {
+    throw new Error('Failed to retrieve chat sessions from DB');
+  }
 
-      const sessions = await response.json() as ChatSession[];
-      if (sessions.length === 0) {
-        // Automatically provision a default session thread
-        const defaultSessionId = 'session_default';
-        const defaultSessionPayload = {
-          id: defaultSessionId,
-          title: 'Executive Intelligence Workspace'
-        };
+  const sessions = (await response.json()) as ChatSession[];
 
-        const createRes = await fetch(`${baseUrl}/api/v1/db/chat/sessions`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${settings.apiKey}`,
-          },
-          body: JSON.stringify(defaultSessionPayload),
-        });
+  if (sessions.length === 0) {
+    // Automatically provision a default session thread
+    const defaultSessionPayload = {
+      id: 'session_default',
+      title: 'Executive Intelligence Workspace',
+    };
 
-        if (createRes.ok) {
-          const created = await createRes.json() as ChatSession;
-          return [created];
-        }
-      }
-      return sessions;
-    } catch (error) {
-      console.warn('Chat sessions fetch from API failed. Error details:', error);
-      throw error;
+    const createRes = await fetch(`${baseUrl}/api/v1/db/chat/sessions`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(defaultSessionPayload),
+    });
+
+    if (createRes.ok) {
+      const created = (await createRes.json()) as ChatSession;
+      return [created];
     }
   }
 
-  return request<ChatSession[]>('/api/chat/sessions', mockChatSessions);
+  return sessions;
 }
 
 /**
  * Deletes a chat session thread and its history.
- * 
- * @param id Session unique ID.
+ *
+ * @param id - Session unique ID.
+ * @returns Whether deletion was successful.
  */
 export async function deleteChatSession(id: string): Promise<boolean> {
-  const settings = getSystemSettings();
+  const baseUrl = getApiBaseUrl();
+  const headers = getHeaders();
 
-  if (settings.enableFastApi) {
-    const baseUrl = settings.fastapiUrl.replace(/\/$/, '');
-    const response = await fetch(`${baseUrl}/api/v1/db/chat/sessions/${id}`, {
-      method: 'DELETE',
-      headers: {
-        'Authorization': `Bearer ${settings.apiKey}`,
-      },
-    });
-    return response.ok;
-  }
-  return true;
-}
+  const response = await fetch(`${baseUrl}/api/v1/db/chat/sessions/${id}`, {
+    method: 'DELETE',
+    headers: {
+      Authorization: headers['Authorization'],
+    },
+  });
 
-/**
- * Retrieves the suggested question list.
- */
-export async function getSuggestedQuestions(): Promise<string[]> {
-  return request<string[]>('/api/chat/suggested-questions', mockSuggestedQuestions);
+  return response.ok;
 }
 
 /**
  * Sends a chat message to the backend session message endpoint,
  * appending it to the history and retrieving the assistant's processed response.
- * 
- * @param sessionId The targeted thread ID.
- * @param content The text content.
- * @param files Optional files.
+ *
+ * @param sessionId - The targeted thread ID.
+ * @param content - The text content.
+ * @param files - Optional file attachments.
+ * @returns The assistant's response message.
  */
 export async function sendChatMessage(
   sessionId: string,
   content: string,
   files?: { name: string; size: string; type: string }[]
 ): Promise<ChatMessage> {
-  const settings = getSystemSettings();
+  const baseUrl = getApiBaseUrl();
+  const headers = getHeaders();
 
-  if (settings.enableFastApi) {
-    const baseUrl = settings.fastapiUrl.replace(/\/$/, '');
-    
-    // Inject file attachment metadata into the query string for the LLM
-    let queryText = content;
-    if (files && files.length > 0) {
-      const fileNames = files.map(f => f.name).join(', ');
-      queryText = `[File Attachments: ${fileNames}] ${content}`;
-    }
-
-    try {
-      const response = await fetch(`${baseUrl}/api/v1/db/chat/sessions/${sessionId}/messages`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${settings.apiKey}`,
-        },
-        body: JSON.stringify({
-          content: queryText,
-          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-        }),
-      });
-
-      if (!response.ok) {
-        const errorDetail = await response.text();
-        throw new Error(`FastAPI message save & agent query failed: ${errorDetail}`);
-      }
-
-      return await response.json() as ChatMessage;
-    } catch (error) {
-      console.warn('AI agent query execution failed. Details:', error);
-      throw error;
-    }
+  // Inject file attachment metadata into the query string for the LLM
+  let queryText = content;
+  if (files && files.length > 0) {
+    const fileNames = files.map((f) => f.name).join(', ');
+    queryText = `[File Attachments: ${fileNames}] ${content}`;
   }
 
-  // Simulated fallback response (never hit when FastAPI is active)
-  return new Promise((resolve) => {
-    setTimeout(() => {
-      resolve({
-        id: `msg_mock_${Date.now()}`,
-        role: 'assistant',
-        content: `I've analyzed your offline request: "${content}". Causal factors trace to seasonality adjustments.`,
-        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        suggestions: ['Show correlation details', 'Create experiment simulation', 'View recommendations']
-      });
-    }, 1200);
-  });
+  const response = await fetch(
+    `${baseUrl}/api/v1/db/chat/sessions/${sessionId}/messages`,
+    {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        content: queryText,
+        timestamp: new Date().toLocaleTimeString([], {
+          hour: '2-digit',
+          minute: '2-digit',
+        }),
+      }),
+    }
+  );
+
+  if (!response.ok) {
+    const errorDetail = await response.text();
+    throw new Error(`AI agent query failed: ${errorDetail}`);
+  }
+
+  return (await response.json()) as ChatMessage;
 }

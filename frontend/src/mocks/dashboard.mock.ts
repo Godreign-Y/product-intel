@@ -1,6 +1,12 @@
+/**
+ * @deprecated This file is no longer used. Dashboard data comes from real API calls.
+ * Kept for reference only.
+ */
+
 import { DashboardData } from '../types/dashboard';
 
 export const mockDashboardData: DashboardData = {
+  aiConfidence: 94,
   kpis: [
     {
       id: 'revenue',

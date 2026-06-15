@@ -1,64 +1,36 @@
+/**
+ * @deprecated This file is no longer used. Recommendations come from real API calls.
+ * Kept for reference only.
+ */
+
 import { Recommendation } from '../types/recommendations';
 
 export const mockRecommendations: Recommendation[] = [
   {
     id: 'rec_1',
     title: 'Reduce checkout steps from 5 to 3',
-    description: 'Simplify checkout flow to remove friction. Previous experiments show reducing steps significantly reduces abandonment rate, particularly on mobile devices.',
-    category: 'High Impact',
-    expectedImpact: '+6.2% Conversion',
+    description: 'Simplify checkout flow to remove friction.',
+    category: 'Conversion',
     businessValue: '+$340K annual revenue potential',
-    confidenceLevel: 84,
-    priority: 'High',
+    priority: 'High Impact',
     status: 'Active',
-    tags: ['Checkout', 'Mobile', 'UX'],
   },
   {
     id: 'rec_2',
     title: 'Lower shipping cost by 10%',
-    description: 'Reduce shipping fees for orders near the average cart value. This addresses the top reason noted in cart abandonment surveys and checkout simulations.',
-    category: 'High Impact',
-    expectedImpact: '+4.1% Conversion',
+    description: 'Reduce shipping fees for orders near the average cart value.',
+    category: 'Logistics',
     businessValue: '+$180K annual revenue potential',
-    confidenceLevel: 79,
-    priority: 'High',
+    priority: 'High Impact',
     status: 'Active',
-    tags: ['Shipping', 'Pricing', 'Friction'],
   },
   {
     id: 'rec_3',
     title: 'Increase ad spend on Meta (Retargeting)',
-    description: 'Allocate additional budget to Meta retargeting campaigns targeting high-intent cart abandoners within 24 hours. ROI is historically higher for this cohort.',
-    category: 'Quick Win',
-    expectedImpact: '+8.3% Revenue',
-    businessValue: '+$150K annual revenue potential',
-    confidenceLevel: 72,
-    priority: 'Medium',
-    status: 'Active',
-    tags: ['Meta Ads', 'Marketing', 'ROI'],
-  },
-  {
-    id: 'rec_4',
-    title: 'Enable guest checkout',
-    description: 'Allow customers to purchase without creating an account. Mandatory registration at checkout is a leading cause of funnel dropoff.',
-    category: 'High Impact',
-    expectedImpact: '+3.2% Conversion',
+    description: 'Retarget past visitors with personalized ads.',
+    category: 'Marketing',
     businessValue: '+$120K annual revenue potential',
-    confidenceLevel: 85,
-    priority: 'Medium',
+    priority: 'Quick Win',
     status: 'Active',
-    tags: ['Checkout', 'Friction', 'Conversion'],
-  },
-  {
-    id: 'rec_5',
-    title: 'Implement exit-intent coupon popup',
-    description: 'Show a 10% coupon when checkout users move cursor to leave. Recovered 2.1% of abandoning traffic in historical A/B tests.',
-    category: 'Quick Win',
-    expectedImpact: '+2.1% Conversion',
-    businessValue: '+$60K annual revenue potential',
-    confidenceLevel: 81,
-    priority: 'Low',
-    status: 'Implemented',
-    tags: ['Retention', 'Popup', 'Coupon'],
   },
 ];

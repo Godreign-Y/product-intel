@@ -1,14 +1,36 @@
+/**
+ * Hook for managing system settings state.
+ *
+ * @module useSettings
+ */
+
 import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { getSettings, updateSettings, testFastApiConnection } from '../services/settings.service';
+import {
+  getSettings,
+  updateSettings,
+  testFastApiConnection,
+} from '../services/settings.service';
 import { SystemSettings } from '../types/settings';
 
+/**
+ * React hook for reading, saving, and testing system settings.
+ */
 export function useSettings() {
   const queryClient = useQueryClient();
-  const [localSettings, setLocalSettings] = useState<SystemSettings | null>(null);
-  const [testResult, setTestResult] = useState<'idle' | 'testing' | 'Connected' | 'Disconnected'>('idle');
+  const [localSettings, setLocalSettings] = useState<SystemSettings | null>(
+    null
+  );
+  const [testResult, setTestResult] = useState<
+    'idle' | 'testing' | 'Connected' | 'Disconnected'
+  >('idle');
 
-  const { data: settings, isLoading, isError, error } = useQuery<SystemSettings, Error>({
+  const {
+    data: settings,
+    isLoading,
+    isError,
+    error,
+  } = useQuery<SystemSettings, Error>({
     queryKey: ['settings'],
     queryFn: getSettings,
     refetchOnWindowFocus: false,
@@ -27,8 +49,6 @@ export function useSettings() {
     onSuccess: (updated) => {
       setLocalSettings(updated);
       queryClient.invalidateQueries({ queryKey: ['settings'] });
-      // Clear out general cache if FastAPI mode was toggled so other queries fetch from real FastAPI or mock
-      queryClient.resetQueries();
     },
   });
 
@@ -36,12 +56,12 @@ export function useSettings() {
     updateMutation.mutate(updated);
   };
 
-  const runTestConnection = async (url: string, apiKey: string) => {
+  const runTestConnection = async () => {
     setTestResult('testing');
-    const result = await testFastApiConnection(url, apiKey);
+    const result = await testFastApiConnection();
     setTestResult(result);
-    
-    // Update db status in settings if connected
+
+    // Update db status in settings
     if (localSettings) {
       const updatedSettings: SystemSettings = {
         ...localSettings,

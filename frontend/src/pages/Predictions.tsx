@@ -56,13 +56,14 @@ export default function PredictionsPage() {
 
   if (!data) return null;
 
-  // 4 Forecast Cards mock stats
-  const forecastCards = [
-    { title: 'Revenue Forecast', value: '$7.80M', change: '+10.4%', isPositive: true, conf: '95%' },
-    { title: 'Profit Forecast', value: '$912K', change: '+14.2%', isPositive: true, conf: '95%' },
-    { title: 'Retention Forecast', value: '94.2%', change: '+1.5%', isPositive: true, conf: '92%' },
-    { title: 'Conversion Forecast', value: '3.72%', change: '+2.8%', isPositive: true, conf: '90%' },
-  ];
+  // Forecast Cards — derived from real backend summary table data
+  const forecastCards = (data.summaryTable || []).slice(0, 4).map((row) => ({
+    title: `${row.metric} Forecast`,
+    value: row.nextPeriodForecast,
+    change: `${row.isPositive ? '+' : ''}${row.projectedChangePercent}%`,
+    isPositive: row.isPositive,
+    conf: `${row.confidence}%`,
+  }));
 
   return (
     <div className="space-y-8 pb-12">
@@ -119,7 +120,7 @@ export default function PredictionsPage() {
               <p className="text-xl font-extrabold text-[#111827] mt-1">{card.value}</p>
             </div>
             <div className="flex justify-between items-center text-[10px] font-bold">
-              <span className="text-[#10B981]">{card.change} Next Period</span>
+              <span className={card.isPositive ? 'text-[#10B981]' : 'text-[#EF4444]'}>{card.change} Next Period</span>
               <span className="text-[#9CA3AF]">{card.conf} Conf</span>
             </div>
           </div>

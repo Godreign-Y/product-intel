@@ -1,23 +1,45 @@
+/**
+ * Hook for managing AI Workspace chat sessions and messaging.
+ *
+ * @module useAIWorkspace
+ */
+
 import { useState, useEffect } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { getChatSessions, getSuggestedQuestions, sendChatMessage } from '../services/ai-workspace.service';
+import { useQuery, useMutation } from '@tanstack/react-query';
+import {
+  getChatSessions,
+  sendChatMessage,
+} from '../services/ai-workspace.service';
 import { ChatSession, ChatMessage } from '../types/ai-workspace';
 
+/**
+ * Predefined suggested questions for the AI workspace.
+ * These are UI-level prompts — no backend endpoint needed.
+ */
+const SUGGESTED_QUESTIONS: string[] = [
+  'What drove revenue changes this month?',
+  'Show me the top declining products',
+  'What would happen if we increase marketing spend by 15%?',
+  'Which products should we optimize pricing for?',
+  'Run a sensitivity analysis on shipping costs',
+];
+
+/**
+ * React hook for AI Workspace state management.
+ */
 export function useAIWorkspace() {
-  const queryClient = useQueryClient();
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
   const [localSessions, setLocalSessions] = useState<ChatSession[]>([]);
 
-  // Fetch initial sessions
-  const { data: sessions, isLoading, isError, error } = useQuery<ChatSession[], Error>({
+  // Fetch initial sessions from backend
+  const {
+    data: sessions,
+    isLoading,
+    isError,
+    error,
+  } = useQuery<ChatSession[], Error>({
     queryKey: ['chatSessions'],
     queryFn: getChatSessions,
-    refetchOnWindowFocus: false,
-  });
-
-  const { data: suggestedQuestions } = useQuery<string[], Error>({
-    queryKey: ['suggestedQuestions'],
-    queryFn: getSuggestedQuestions,
     refetchOnWindowFocus: false,
   });
 
@@ -31,7 +53,8 @@ export function useAIWorkspace() {
     }
   }, [sessions]);
 
-  const activeSession = localSessions.find((s) => s.id === activeSessionId) || null;
+  const activeSession =
+    localSessions.find((s) => s.id === activeSessionId) || null;
 
   // Send message mutation
   const sendMessageMutation = useMutation({
@@ -52,7 +75,10 @@ export function useAIWorkspace() {
         id: `msg_user_${Date.now()}`,
         role: 'user',
         content: variables.content,
-        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        timestamp: new Date().toLocaleTimeString([], {
+          hour: '2-digit',
+          minute: '2-digit',
+        }),
         files: variables.files,
       };
 
@@ -88,7 +114,10 @@ export function useAIWorkspace() {
         id: `msg_err_${Date.now()}`,
         role: 'assistant',
         content: `Error: Failed to get response. ${err.message}`,
-        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        timestamp: new Date().toLocaleTimeString([], {
+          hour: '2-digit',
+          minute: '2-digit',
+        }),
       };
 
       setLocalSessions((prev) =>
@@ -105,9 +134,16 @@ export function useAIWorkspace() {
     },
   });
 
-  const sendMessage = (content: string, files?: { name: string; size: string; type: string }[]) => {
+  const sendMessage = (
+    content: string,
+    files?: { name: string; size: string; type: string }[]
+  ) => {
     if (!activeSessionId) return;
-    sendMessageMutation.mutate({ sessionId: activeSessionId, content, files });
+    sendMessageMutation.mutate({
+      sessionId: activeSessionId,
+      content,
+      files,
+    });
   };
 
   const createNewSession = () => {
@@ -126,7 +162,7 @@ export function useAIWorkspace() {
     activeSession,
     activeSessionId,
     setActiveSessionId,
-    suggestedQuestions: suggestedQuestions || [],
+    suggestedQuestions: SUGGESTED_QUESTIONS,
     isLoading,
     isError,
     error,

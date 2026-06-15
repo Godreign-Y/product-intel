@@ -1,12 +1,25 @@
+/**
+ * Recommendation entity types.
+ *
+ * @module types/recommendations
+ */
+
 export interface Recommendation {
   id: string;
   title: string;
   description: string;
-  category: 'High Impact' | 'Quick Win' | 'Ongoing';
-  expectedImpact: string;
+  /** Business category for the recommendation. */
+  category: string;
+  /** Projected business value from implementing this recommendation. */
   businessValue: string;
-  confidenceLevel: number; // percentage
-  priority: 'High' | 'Medium' | 'Low';
+  /** Priority level based on impact assessment. */
+  priority: 'High Impact' | 'Quick Win' | 'Ongoing';
+  /** Implementation status. */
   status: 'Active' | 'Implemented' | 'Archived';
-  tags: string[];
+  /** Lucide icon name. */
+  icon?: string;
+  /** Estimated time to implement. */
+  timeToImplement?: string;
+  /** Effort level. */
+  effort?: 'Low' | 'Medium' | 'High';
 }

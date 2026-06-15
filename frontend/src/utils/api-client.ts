@@ -1,68 +1,77 @@
-import { mockSettings } from '../mocks/settings.mock';
-import { SystemSettings } from '../types/settings';
+/**
+ * API Client for Product Intelligence Frontend.
+ *
+ * Reads configuration from environment variables (VITE_API_BASE_URL, VITE_API_KEY).
+ * All requests go directly to the FastAPI backend — no mock data, no fallbacks.
+ *
+ * @module api-client
+ */
 
-const SETTINGS_KEY = 'prodintel_settings';
+/** Base URL for the FastAPI backend, sourced from environment. */
+const API_BASE_URL: string = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000').replace(/\/$/, '');
 
-export function getSystemSettings(): SystemSettings {
-  if (typeof window === 'undefined') {
-    return mockSettings;
-  }
-  const saved = localStorage.getItem(SETTINGS_KEY);
-  if (!saved) {
-    localStorage.setItem(SETTINGS_KEY, JSON.stringify(mockSettings));
-    return mockSettings;
-  }
-  try {
-    return JSON.parse(saved);
-  } catch {
-    return mockSettings;
-  }
+/** API authentication key, sourced from environment. */
+const API_KEY: string = import.meta.env.VITE_API_KEY || '';
+
+/**
+ * Returns the configured API base URL.
+ */
+export function getApiBaseUrl(): string {
+  return API_BASE_URL;
 }
 
-export function saveSystemSettings(settings: SystemSettings) {
-  if (typeof window !== 'undefined') {
-    localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
-  }
+/**
+ * Returns the configured API key.
+ */
+export function getApiKey(): string {
+  return API_KEY;
 }
 
-export const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+/**
+ * Builds the standard request headers for all API calls.
+ *
+ * @returns Headers object with Content-Type and Authorization.
+ */
+export function getHeaders(): Record<string, string> {
+  return {
+    'Content-Type': 'application/json',
+    'Authorization': `Bearer ${API_KEY}`,
+  };
+}
 
+/**
+ * Performs a typed HTTP request to the FastAPI backend.
+ *
+ * @template T - Expected response type.
+ * @param endpoint - API path (e.g., '/api/v1/analytics/kpi').
+ * @param options - Optional fetch RequestInit overrides.
+ * @returns Promise resolving to the parsed JSON response.
+ * @throws Error if the request fails or returns non-OK status.
+ */
 export async function request<T>(
   endpoint: string,
-  mockData: T,
   options?: RequestInit
 ): Promise<T> {
-  const settings = getSystemSettings();
-  await delay(settings.mockDelay || 800);
+  const fetchOptions: RequestInit = {
+    method: options?.method || 'GET',
+    headers: {
+      ...getHeaders(),
+      ...(options?.headers || {}),
+    },
+  };
 
-  if (settings.enableFastApi) {
-    const baseUrl = settings.fastapiUrl.replace(/\/$/, '');
-    try {
-      const fetchOptions: RequestInit = {
-        method: options?.method || 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${settings.apiKey}`,
-          ...(options?.headers || {}),
-        },
-      };
-
-      if (options?.body) {
-        fetchOptions.body = options.body;
-      }
-
-      const response = await fetch(`${baseUrl}${endpoint}`, fetchOptions);
-      if (!response.ok) {
-        throw new Error(`FastAPI Request failed with status ${response.status}`);
-      }
-      return await response.json() as T;
-    } catch (error) {
-      console.warn(`FastAPI call to ${endpoint} failed. Error:`, error);
-      // Propagate the error directly when FastAPI is active, so the UI displays the true error state.
-      throw error;
-    }
+  if (options?.body) {
+    fetchOptions.body = options.body;
   }
 
-  // Otherwise, return mock data
-  return mockData;
+  const response = await fetch(`${API_BASE_URL}${endpoint}`, fetchOptions);
+
+  if (!response.ok) {
+    const errorBody = await response.text().catch(() => '');
+    throw new Error(
+      `API request to ${endpoint} failed (${response.status}): ${errorBody || response.statusText}`
+    );
+  }
+
+  return (await response.json()) as T;
 }

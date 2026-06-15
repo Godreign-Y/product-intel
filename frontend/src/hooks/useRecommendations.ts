@@ -32,7 +32,7 @@ export function useRecommendations() {
 
   const filteredRecommendations = localRecommendations.filter((r) => {
     if (filter === 'All') return true;
-    return r.category === filter;
+    return r.priority === filter;
   });
 
   const handleApply = (id: string) => {
