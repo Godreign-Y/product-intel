@@ -3,3 +3,5 @@ venv/
 .pytest_cache/
 .next/
 node_modules/
+__pycache__/
+*.pyc
