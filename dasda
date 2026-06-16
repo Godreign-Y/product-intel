@@ -1,0 +1,59 @@
+[33mcommit 41444d4298f607f9bb1fcab1d416f11c62f73606[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mnew-data[m[33m)[m
+Author: Godreign-Y <godreign.y@relanto.ai>
+Date:   Tue Jun 16 11:33:23 2026 +0530
+
+    data generated
+
+ .gitignore                                         |     1 [32m+[m
+ new/data-generator/code/.python-version            |     1 [32m+[m
+ new/data-generator/code/20_product_generator.py    |    19 [32m+[m[31m-[m
+ .../code/21_action_schedule_generator-v1.py        |   354 [32m+[m
+ .../22_SIMULATOR_ENGINE_IMPLEMENTATION_PLAN.md     |   700 [32m+[m
+ new/data-generator/code/22_simulator_engine.py     |    95 [32m+[m
+ new/data-generator/code/README.md                  |     0
+ new/data-generator/code/action_schedules.json      | 79564 [32m++[m[31m---------------[m
+ new/data-generator/code/dataset-builder.py         |   267 [32m+[m
+ .../code/final-output/training_dataset.csv         | 87361 [32m++++++++++++++++++[m
+ .../code/final-output/trajectories_v6.csv          | 87601 [32m+++++++++++++++++++[m
+ new/data-generator/code/main.py                    |     6 [32m+[m
+ new/data-generator/code/pyproject.toml             |    10 [32m+[m
+ new/data-generator/code/simulation_report.json     |     8 [32m+[m
+ new/data-generator/code/simulation_report_v2.json  |     8 [32m+[m
+ new/data-generator/code/simulation_report_v3.json  |     8 [32m+[m
+ new/data-generator/code/simulation_report_v5.json  |     8 [32m+[m
+ new/data-generator/code/simulation_report_v6.json  |     8 [32m+[m
+ .../code/simulator/config/archetypes.json          |    10 [32m+[m
+ .../code/simulator/config/curve_profiles.json      |    37 [32m+[m
+ .../code/simulator/config/elasticities.json        |    95 [32m+[m
+ .../code/simulator/config/interaction_rules.json   |    14 [32m+[m
+ .../code/simulator/config/market_graph.json        |     7 [32m+[m
+ .../simulator/config/simulation_assumptions.json   |    28 [32m+[m
+ new/data-generator/code/simulator/core/models.py   |    49 [32m+[m
+ .../code/simulator/core/state_transition.py        |   206 [32m+[m
+ .../code/simulator/core/trajectory_simulator.py    |    92 [32m+[m
+ .../code/simulator/physics/config_loader.py        |    69 [32m+[m
+ .../code/simulator/physics/curves.py               |    68 [32m+[m
+ .../code/simulator/physics/interactions.py         |    46 [32m+[m
+ .../code/simulator/physics/propagation.py          |    68 [32m+[m
+ .../code/simulator/writers/csv_writer.py           |    86 [32m+[m
+ .../code/simulator/writers/parquet_writer.py       |    58 [32m+[m
+ .../code/simulator/writers/report_generator.py     |    44 [32m+[m
+ new/data-generator/code/uv.lock                    |    77 [32m+[m
+ .../code/validator/causality_validator.py          |    49 [32m+[m
+ new/data-generator/code/validator/data_quality.py  |    99 [32m+[m
+ .../code/validator/elasticity_validator.py         |   109 [32m+[m
+ new/data-generator/code/validator/main.py          |   115 [32m+[m
+ .../docs/20-product-generator-spec.md              |   599 [32m+[m
+ .../docs/21_action_schedule_generator_spec.md      |   666 [32m+[m
+ ...4.5-simulator-validation-sectionE,F-detailed.md |   705 [32m+[m
+ new/data-generator/docs/24_simulator_validation.md |   432 [32m+[m
+ new/data-generator/docs/25_simulation_report.json  |   588 [32m+[m
+ new/data-generator/docs/archetypes-overrides.md    |   312 [32m+[m
+ new/data-generator/docs/causal-knowledge-base.md   |    76 [32m+[m
+ .../docs/edge-classification-matrix.md             |    17 [32m+[m
+ new/data-generator/docs/edge-elasticities.md       |   593 [32m+[m
+ .../docs/market_state_dependency_graph.md          |   547 [32m+[m
+ new/data-generator/docs/product-archetypes.md      |   318 [32m+[m
+ new/data-generator/docs/state-definition.md        |     2 [32m+[m[31m-[m
+ new/data-generator/docs/system-flow.md             |   347 [32m+[m
+ 52 files changed, 187977 insertions(+), 74670 deletions(-)
