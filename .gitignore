@@ -32,3 +32,5 @@ __pycache__/
 # Testing
 .pytest_cache/
 new/data-generator/code/output/
+new/data-generator/code/final-output/artifacts/
+
