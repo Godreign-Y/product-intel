@@ -8,7 +8,7 @@ from validator.elasticity_validator import ElasticityValidator
 from validator.causality_validator import CausalityValidator
 
 def run_validation():
-    csv_path = "output/trajectories_v6.csv"
+    csv_path = "output/trajectories_v8.csv"
     
     if not os.path.exists(csv_path):
         print(f"Error: Could not find {csv_path}")

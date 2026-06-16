@@ -64,6 +64,11 @@ class DataQualityValidator:
             acq_sums = df[acq_cols].sum(axis=1)
             mix_violations += int((abs(acq_sums - 100.0) > 0.1).sum())
             
+        age_cols = [c for c in df.columns if c.startswith("age_mix_")]
+        if age_cols:
+            age_sums = df[age_cols].sum(axis=1)
+            mix_violations += int((abs(age_sums - 100.0) > 0.1).sum())
+            
         self.results["mix_violations"] = mix_violations
 
     def _check_inventory(self):

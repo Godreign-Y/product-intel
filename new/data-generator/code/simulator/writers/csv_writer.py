@@ -22,7 +22,8 @@ class CsvStreamWriter:
             "orders", "fulfilled_orders", "revenue", "profit", "conversion_rate", "retention_rate", "avg_ltv",
             "sales_mix_amazon", "sales_mix_website", "sales_mix_nykaa", "sales_mix_mobile_app",
             "campaign_mix_search", "campaign_mix_social", "campaign_mix_email", "campaign_mix_affiliate",
-            "acq_mix_google", "acq_mix_instagram", "acq_mix_facebook", "acq_mix_organic", "acq_mix_referral", "acq_mix_email"
+            "acq_mix_google", "acq_mix_instagram", "acq_mix_facebook", "acq_mix_organic", "acq_mix_referral", "acq_mix_email",
+            "category_id", "age_mix_0_25", "age_mix_25_45", "age_mix_45_plus"
         ]
         
         # Write header
@@ -66,7 +67,11 @@ class CsvStreamWriter:
             "acq_mix_facebook": state.acquisition_mix.get("facebook", 0.0),
             "acq_mix_organic": state.acquisition_mix.get("organic", 0.0),
             "acq_mix_referral": state.acquisition_mix.get("referral", 0.0),
-            "acq_mix_email": state.acquisition_mix.get("email", 0.0)
+            "acq_mix_email": state.acquisition_mix.get("email", 0.0),
+            "category_id": state.category_id,
+            "age_mix_0_25": state.age_group_mix.get("0-25", 0.0),
+            "age_mix_25_45": state.age_group_mix.get("25-45", 0.0),
+            "age_mix_45_plus": state.age_group_mix.get("45+", 0.0)
         }
         return d
 

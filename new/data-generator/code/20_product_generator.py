@@ -307,6 +307,11 @@ def generate_product(product_id, archetype_name, cfg):
                     "email"
                 ]
             ),
+            
+            "age_group_mix": rand_pct_mix(
+                ["0-25", "25-45", "45+"]
+            ),
+            
             "margin": margin,
             "traffic": traffic,
             "active_users": int(traffic * 0.4),

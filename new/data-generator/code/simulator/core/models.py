@@ -21,6 +21,9 @@ class BusinessState:
     sales_channel_mix: Dict[str, float] = field(default_factory=dict)
     campaign_mix: Dict[str, float] = field(default_factory=dict)
     acquisition_mix: Dict[str, float] = field(default_factory=dict)
+    age_group_mix: Dict[str, float] = field(default_factory=dict)
+    
+    category_id: int = 0
     
     traffic: int = 0
     active_users: int = 0

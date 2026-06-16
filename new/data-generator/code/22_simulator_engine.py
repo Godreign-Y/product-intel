@@ -51,6 +51,18 @@ def main():
         print(f"Error loading inputs: {e}")
         return
 
+    # Extract unique categories and build map
+    categories = list(set(p.get("category", "Unknown") for p in products))
+    category_map = {cat: idx + 1 for idx, cat in enumerate(sorted(categories))}
+    
+    # Save category mapping
+    with open("output/category_mapping.json", "w") as f:
+        json.dump(category_map, f, indent=4)
+        
+    # Inject category_id into products
+    for p in products:
+        p["category_id"] = category_map.get(p.get("category", "Unknown"), 0)
+
     # To test without doing 876k rows, we can slice products/schedules
     # products = products[:2]
     # schedules = schedules[:10]

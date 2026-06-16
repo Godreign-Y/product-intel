@@ -32,17 +32,22 @@
         "referral": 28.7,
         "email": 0.23
       },
+      "age_group_mix": {
+        "0-25": 43.69,
+        "25-45": 37.86,
+        "45+": 18.45
+      },
       "margin": 0.4946,
       "traffic": 8074,
       "active_users": 3229,
-      "current_ctr": 0.0664,
-      "current_roas": 4.64,
+      "current_ctr": 0.0209,
+      "current_roas": 5.81,
       "orders": 250,
       "revenue": 88942.5,
       "profit": 43990.96,
       "conversion_rate": 0.031,
       "retention_rate": 0.2446,
-      "avg_ltv": 1437.85
+      "avg_ltv": 1430.04
     },
     "behavior_parameters": {
       "price_sensitivity": 1.5,
@@ -62,42 +67,47 @@
     "subcategory": "Skincare",
     "brand": "Brand_B",
     "base_state": {
-      "inventory_available": 889,
-      "avg_selling_price": 1621.92,
-      "discount_pct": 15.0,
+      "inventory_available": 398,
+      "avg_selling_price": 1370.98,
+      "discount_pct": 20.0,
       "shipping_fee": 14.99,
-      "marketing_spend": 2757.26,
+      "marketing_spend": 16588.86,
       "sales_channel_mix": {
-        "amazon": 26.49,
-        "website": 23.96,
-        "nykaa": 17.6,
-        "mobile_app": 31.95
+        "amazon": 21.98,
+        "website": 39.88,
+        "nykaa": 15.51,
+        "mobile_app": 22.63
       },
       "campaign_mix": {
-        "search": 15.92,
-        "social": 23.21,
-        "email": 34.87,
-        "affiliate": 26.0
+        "search": 28.73,
+        "social": 21.42,
+        "email": 29.85,
+        "affiliate": 20.0
       },
       "acquisition_mix": {
-        "google": 31.84,
-        "instagram": 21.33,
-        "facebook": 26.03,
-        "organic": 1.69,
-        "referral": 8.42,
-        "email": 10.69
+        "google": 44.59,
+        "instagram": 2.9,
+        "facebook": 14.42,
+        "organic": 18.31,
+        "referral": 5.05,
+        "email": 14.73
       },
-      "margin": 0.539,
-      "traffic": 1337,
-      "active_users": 534,
-      "current_ctr": 0.0156,
-      "current_roas": 2.55,
-      "orders": 17,
-      "revenue": 27572.64,
-      "profit": 14861.65,
-      "conversion_rate": 0.0128,
-      "retention_rate": 0.329,
-      "avg_ltv": 4226.74
+      "age_group_mix": {
+        "0-25": 9.95,
+        "25-45": 27.4,
+        "45+": 62.65
+      },
+      "margin": 0.5229,
+      "traffic": 3440,
+      "active_users": 1376,
+      "current_ctr": 0.0355,
+      "current_roas": 3.17,
+      "orders": 121,
+      "revenue": 165888.58,
+      "profit": 86743.14,
+      "conversion_rate": 0.0354,
+      "retention_rate": 0.4811,
+      "avg_ltv": 4465.34
     },
     "behavior_parameters": {
       "price_sensitivity": 0.6,
@@ -117,42 +127,47 @@
     "subcategory": "Consumables",
     "brand": "Brand_C",
     "base_state": {
-      "inventory_available": 6977,
-      "avg_selling_price": 175.09,
-      "discount_pct": 20.0,
-      "shipping_fee": 4.99,
-      "marketing_spend": 17351.42,
+      "inventory_available": 2169,
+      "avg_selling_price": 170.14,
+      "discount_pct": 10.0,
+      "shipping_fee": 3.99,
+      "marketing_spend": 66558.77,
       "sales_channel_mix": {
-        "amazon": 4.81,
-        "website": 42.75,
-        "nykaa": 35.96,
-        "mobile_app": 16.48
+        "amazon": 12.84,
+        "website": 44.0,
+        "nykaa": 32.72,
+        "mobile_app": 10.44
       },
       "campaign_mix": {
-        "search": 19.7,
-        "social": 11.51,
-        "email": 39.45,
-        "affiliate": 29.34
+        "search": 16.46,
+        "social": 38.99,
+        "email": 2.84,
+        "affiliate": 41.71
       },
       "acquisition_mix": {
-        "google": 7.33,
-        "instagram": 10.83,
-        "facebook": 25.65,
-        "organic": 1.87,
-        "referral": 27.44,
-        "email": 26.88
+        "google": 23.189999999999998,
+        "instagram": 11.56,
+        "facebook": 1.91,
+        "organic": 26.31,
+        "referral": 16.34,
+        "email": 20.69
       },
-      "margin": 0.3068,
-      "traffic": 15659,
-      "active_users": 6263,
-      "current_ctr": 0.0381,
-      "current_roas": 1.8,
-      "orders": 991,
-      "revenue": 173514.19,
-      "profit": 53234.15,
-      "conversion_rate": 0.0633,
-      "retention_rate": 0.1419,
-      "avg_ltv": 1309.47
+      "age_group_mix": {
+        "0-25": 13.32,
+        "25-45": 31.27,
+        "45+": 55.41
+      },
+      "margin": 0.2979,
+      "traffic": 44920,
+      "active_users": 17968,
+      "current_ctr": 0.055,
+      "current_roas": 2.14,
+      "orders": 3912,
+      "revenue": 665587.68,
+      "profit": 198278.57,
+      "conversion_rate": 0.0871,
+      "retention_rate": 0.2068,
+      "avg_ltv": 482.82
     },
     "behavior_parameters": {
       "price_sensitivity": 1.2,
@@ -172,42 +187,47 @@
     "subcategory": "Gadgets",
     "brand": "Brand_A",
     "base_state": {
-      "inventory_available": 3077,
-      "avg_selling_price": 6104.62,
-      "discount_pct": 10.0,
+      "inventory_available": 4915,
+      "avg_selling_price": 7704.9,
+      "discount_pct": 5.0,
       "shipping_fee": 9.99,
-      "marketing_spend": 62877.59,
+      "marketing_spend": 101704.68,
       "sales_channel_mix": {
-        "amazon": 19.83,
-        "website": 18.47,
-        "nykaa": 42.03,
-        "mobile_app": 19.67
+        "amazon": 41.82,
+        "website": 5.8,
+        "nykaa": 20.69,
+        "mobile_app": 31.69
       },
       "campaign_mix": {
-        "search": 27.82,
-        "social": 42.73,
-        "email": 19.01,
-        "affiliate": 10.44
+        "search": 46.43,
+        "social": 8.24,
+        "email": 8.63,
+        "affiliate": 36.7
       },
       "acquisition_mix": {
-        "google": 41.87,
-        "instagram": 21.39,
-        "facebook": 3.82,
-        "organic": 1.98,
-        "referral": 4.6,
-        "email": 26.34
+        "google": 20.94,
+        "instagram": 13.5,
+        "facebook": 20.91,
+        "organic": 16.42,
+        "referral": 8.82,
+        "email": 19.41
       },
-      "margin": 0.5658,
-      "traffic": 4483,
-      "active_users": 1793,
-      "current_ctr": 0.0654,
-      "current_roas": 3.4,
-      "orders": 103,
-      "revenue": 628775.86,
-      "profit": 355761.38,
-      "conversion_rate": 0.0231,
-      "retention_rate": 0.3187,
-      "avg_ltv": 14536.12
+      "age_group_mix": {
+        "0-25": 54.25,
+        "25-45": 39.16,
+        "45+": 6.59
+      },
+      "margin": 0.4334,
+      "traffic": 5304,
+      "active_users": 2121,
+      "current_ctr": 0.0719,
+      "current_roas": 4.88,
+      "orders": 132,
+      "revenue": 1017046.8,
+      "profit": 440788.08,
+      "conversion_rate": 0.0249,
+      "retention_rate": 0.3285,
+      "avg_ltv": 50941.66
     },
     "behavior_parameters": {
       "price_sensitivity": 1.0,
@@ -227,42 +247,47 @@
     "subcategory": "Gadgets",
     "brand": "Brand_B",
     "base_state": {
-      "inventory_available": 289,
-      "avg_selling_price": 44345.74,
+      "inventory_available": 200,
+      "avg_selling_price": 40615.79,
       "discount_pct": 20.0,
-      "shipping_fee": 49.99,
-      "marketing_spend": 186252.11,
+      "shipping_fee": 29.99,
+      "marketing_spend": 121847.37,
       "sales_channel_mix": {
-        "amazon": 4.55,
-        "website": 35.13,
-        "nykaa": 29.81,
-        "mobile_app": 30.51
+        "amazon": 41.4,
+        "website": 32.45,
+        "nykaa": 21.62,
+        "mobile_app": 4.53
       },
       "campaign_mix": {
-        "search": 42.79,
-        "social": 36.91,
-        "email": 19.89,
-        "affiliate": 0.41
+        "search": 28.77,
+        "social": 38.72,
+        "email": 23.36,
+        "affiliate": 9.15
       },
       "acquisition_mix": {
-        "google": 19.04,
-        "instagram": 18.99,
-        "facebook": 25.65,
-        "organic": 20.11,
-        "referral": 13.4,
-        "email": 2.81
+        "google": 9.52,
+        "instagram": 4.11,
+        "facebook": 24.27,
+        "organic": 23.48,
+        "referral": 23.38,
+        "email": 15.24
       },
-      "margin": 0.577,
-      "traffic": 4834,
-      "active_users": 1933,
-      "current_ctr": 0.0538,
-      "current_roas": 5.29,
-      "orders": 42,
-      "revenue": 1862521.08,
-      "profit": 1074674.66,
-      "conversion_rate": 0.0088,
-      "retention_rate": 0.133,
-      "avg_ltv": 223767.6
+      "age_group_mix": {
+        "0-25": 50.72,
+        "25-45": 11.61,
+        "45+": 37.67
+      },
+      "margin": 0.4888,
+      "traffic": 4061,
+      "active_users": 1624,
+      "current_ctr": 0.079,
+      "current_roas": 5.13,
+      "orders": 30,
+      "revenue": 1218473.7,
+      "profit": 595589.94,
+      "conversion_rate": 0.0074,
+      "retention_rate": 0.0505,
+      "avg_ltv": 139584.85
     },
     "behavior_parameters": {
       "price_sensitivity": 1.2,
@@ -282,42 +307,47 @@
     "subcategory": "Consumables",
     "brand": "Brand_C",
     "base_state": {
-      "inventory_available": 29504,
-      "avg_selling_price": 75.7,
-      "discount_pct": 0.0,
-      "shipping_fee": 9.99,
-      "marketing_spend": 10522.3,
+      "inventory_available": 42182,
+      "avg_selling_price": 87.44,
+      "discount_pct": 15.0,
+      "shipping_fee": 4.99,
+      "marketing_spend": 2194.74,
       "sales_channel_mix": {
-        "amazon": 15.07,
-        "website": 0.91,
-        "nykaa": 43.18,
-        "mobile_app": 40.84
+        "amazon": 9.040000000000001,
+        "website": 33.51,
+        "nykaa": 38.76,
+        "mobile_app": 18.69
       },
       "campaign_mix": {
-        "search": 40.08,
-        "social": 14.82,
-        "email": 2.79,
-        "affiliate": 42.31
+        "search": 42.63,
+        "social": 20.67,
+        "email": 10.35,
+        "affiliate": 26.35
       },
       "acquisition_mix": {
-        "google": 30.41,
-        "instagram": 2.75,
-        "facebook": 15.61,
-        "organic": 2.22,
-        "referral": 24.42,
-        "email": 24.59
+        "google": 21.95,
+        "instagram": 6.05,
+        "facebook": 9.37,
+        "organic": 29.92,
+        "referral": 19.54,
+        "email": 13.17
       },
-      "margin": 0.569,
-      "traffic": 27985,
-      "active_users": 11194,
-      "current_ctr": 0.019,
-      "current_roas": 3.64,
-      "orders": 1390,
-      "revenue": 105223.0,
-      "profit": 59871.89,
-      "conversion_rate": 0.0497,
-      "retention_rate": 0.7814,
-      "avg_ltv": 401.12
+      "age_group_mix": {
+        "0-25": 59.95,
+        "25-45": 14.02,
+        "45+": 26.03
+      },
+      "margin": 0.2277,
+      "traffic": 5580,
+      "active_users": 2232,
+      "current_ctr": 0.0337,
+      "current_roas": 4.15,
+      "orders": 251,
+      "revenue": 21947.44,
+      "profit": 4997.43,
+      "conversion_rate": 0.0451,
+      "retention_rate": 0.5944,
+      "avg_ltv": 295.61
     },
     "behavior_parameters": {
       "price_sensitivity": 1.8,
@@ -338,41 +368,46 @@
     "brand": "Brand_A",
     "base_state": {
       "inventory_available": 0,
-      "avg_selling_price": 603.61,
-      "discount_pct": 20.0,
-      "shipping_fee": 4.99,
-      "marketing_spend": 12917.25,
+      "avg_selling_price": 518.41,
+      "discount_pct": 0.0,
+      "shipping_fee": 5.99,
+      "marketing_spend": 2695.73,
       "sales_channel_mix": {
-        "amazon": 17.03,
-        "website": 28.66,
-        "nykaa": 15.93,
-        "mobile_app": 38.38
+        "amazon": 18.979999999999997,
+        "website": 53.37,
+        "nykaa": 17.09,
+        "mobile_app": 10.56
       },
       "campaign_mix": {
-        "search": 57.559999999999995,
-        "social": 31.6,
-        "email": 8.16,
-        "affiliate": 2.68
+        "search": 33.85,
+        "social": 20.66,
+        "email": 17.1,
+        "affiliate": 28.39
       },
       "acquisition_mix": {
-        "google": 27.930000000000003,
-        "instagram": 29.66,
-        "facebook": 0.36,
-        "organic": 35.68,
-        "referral": 2.97,
-        "email": 3.4
+        "google": 33.410000000000004,
+        "instagram": 7.88,
+        "facebook": 4.01,
+        "organic": 17.84,
+        "referral": 17.53,
+        "email": 19.33
       },
-      "margin": 0.4759,
-      "traffic": 4470,
-      "active_users": 1788,
-      "current_ctr": 0.0122,
-      "current_roas": 2.99,
-      "orders": 214,
-      "revenue": 129172.54,
-      "profit": 61473.21,
-      "conversion_rate": 0.0479,
-      "retention_rate": 0.8643,
-      "avg_ltv": 3069.32
+      "age_group_mix": {
+        "0-25": 30.55,
+        "25-45": 28.21,
+        "45+": 41.24
+      },
+      "margin": 0.5439,
+      "traffic": 1964,
+      "active_users": 785,
+      "current_ctr": 0.0169,
+      "current_roas": 3.31,
+      "orders": 52,
+      "revenue": 26957.32,
+      "profit": 14662.09,
+      "conversion_rate": 0.0269,
+      "retention_rate": 0.9169,
+      "avg_ltv": 2092.21
     },
     "behavior_parameters": {
       "price_sensitivity": 0.9,
@@ -392,42 +427,47 @@
     "subcategory": "Consumables",
     "brand": "Brand_B",
     "base_state": {
-      "inventory_available": 4476,
-      "avg_selling_price": 907.58,
-      "discount_pct": 15.0,
+      "inventory_available": 2536,
+      "avg_selling_price": 2598.85,
+      "discount_pct": 5.0,
       "shipping_fee": 9.99,
-      "marketing_spend": 65073.49,
+      "marketing_spend": 81863.78,
       "sales_channel_mix": {
-        "amazon": 19.96,
-        "website": 38.85,
-        "nykaa": 33.44,
-        "mobile_app": 7.75
+        "amazon": 10.07,
+        "website": 37.27,
+        "nykaa": 17.89,
+        "mobile_app": 34.77
       },
       "campaign_mix": {
-        "search": 28.8,
-        "social": 15.48,
-        "email": 17.97,
-        "affiliate": 37.75
+        "search": 22.58,
+        "social": 2.08,
+        "email": 41.02,
+        "affiliate": 34.32
       },
       "acquisition_mix": {
-        "google": 1.85,
-        "instagram": 22.2,
-        "facebook": 21.95,
-        "organic": 2.06,
-        "referral": 24.74,
-        "email": 27.2
+        "google": 26.85,
+        "instagram": 25.66,
+        "facebook": 23.51,
+        "organic": 4.61,
+        "referral": 13.45,
+        "email": 5.92
       },
-      "margin": 0.553,
-      "traffic": 15040,
-      "active_users": 6016,
-      "current_ctr": 0.0176,
-      "current_roas": 2.36,
-      "orders": 717,
-      "revenue": 650734.86,
-      "profit": 359856.38,
-      "conversion_rate": 0.0477,
-      "retention_rate": 0.1585,
-      "avg_ltv": 4735.49
+      "age_group_mix": {
+        "0-25": 47.82,
+        "25-45": 6.99,
+        "45+": 45.19
+      },
+      "margin": 0.3688,
+      "traffic": 13556,
+      "active_users": 5422,
+      "current_ctr": 0.079,
+      "current_roas": 2.69,
+      "orders": 315,
+      "revenue": 818637.75,
+      "profit": 301913.6,
+      "conversion_rate": 0.0233,
+      "retention_rate": 0.1173,
+      "avg_ltv": 17423.79
     },
     "behavior_parameters": {
       "price_sensitivity": 0.7,
@@ -447,42 +487,47 @@
     "subcategory": "Skincare",
     "brand": "Brand_C",
     "base_state": {
-      "inventory_available": 66,
-      "avg_selling_price": 18317.32,
-      "discount_pct": 15.0,
-      "shipping_fee": 29.99,
-      "marketing_spend": 12822.12,
+      "inventory_available": 128,
+      "avg_selling_price": 48225.79,
+      "discount_pct": 20.0,
+      "shipping_fee": 49.99,
+      "marketing_spend": 139854.79,
       "sales_channel_mix": {
-        "amazon": 1.78,
-        "website": 35.0,
-        "nykaa": 29.28,
-        "mobile_app": 33.94
+        "amazon": 7.74,
+        "website": 14.84,
+        "nykaa": 48.45,
+        "mobile_app": 28.97
       },
       "campaign_mix": {
-        "search": 38.17,
-        "social": 34.97,
-        "email": 6.85,
-        "affiliate": 20.01
+        "search": 28.080000000000002,
+        "social": 38.72,
+        "email": 2.96,
+        "affiliate": 30.24
       },
       "acquisition_mix": {
-        "google": 9.27,
-        "instagram": 17.41,
-        "facebook": 2.55,
-        "organic": 16.46,
-        "referral": 42.79,
-        "email": 11.52
+        "google": 18.360000000000003,
+        "instagram": 31.12,
+        "facebook": 5.75,
+        "organic": 35.07,
+        "referral": 2.92,
+        "email": 6.78
       },
-      "margin": 0.2302,
-      "traffic": 670,
-      "active_users": 268,
-      "current_ctr": 0.0649,
-      "current_roas": 3.55,
-      "orders": 7,
-      "revenue": 128221.24,
-      "profit": 29516.53,
-      "conversion_rate": 0.0119,
-      "retention_rate": 0.5498,
-      "avg_ltv": 83124.82
+      "age_group_mix": {
+        "0-25": 39.53,
+        "25-45": 44.85,
+        "45+": 15.62
+      },
+      "margin": 0.4223,
+      "traffic": 1526,
+      "active_users": 610,
+      "current_ctr": 0.0184,
+      "current_roas": 5.51,
+      "orders": 29,
+      "revenue": 1398547.91,
+      "profit": 590606.78,
+      "conversion_rate": 0.0194,
+      "retention_rate": 0.5982,
+      "avg_ltv": 167695.16
     },
     "behavior_parameters": {
       "price_sensitivity": 0.4,
@@ -502,42 +547,47 @@
     "subcategory": "Gadgets",
     "brand": "Brand_A",
     "base_state": {
-      "inventory_available": 4652,
-      "avg_selling_price": 4807.93,
-      "discount_pct": 0.0,
+      "inventory_available": 771,
+      "avg_selling_price": 3175.34,
+      "discount_pct": 5.0,
       "shipping_fee": 9.99,
-      "marketing_spend": 220203.19,
+      "marketing_spend": 90497.19,
       "sales_channel_mix": {
-        "amazon": 39.53,
-        "website": 3.02,
-        "nykaa": 30.87,
-        "mobile_app": 26.58
+        "amazon": 48.52,
+        "website": 22.76,
+        "nykaa": 19.24,
+        "mobile_app": 9.48
       },
       "campaign_mix": {
-        "search": 41.57,
-        "social": 7.68,
-        "email": 46.84,
-        "affiliate": 3.91
+        "search": 21.75,
+        "social": 15.41,
+        "email": 31.31,
+        "affiliate": 31.53
       },
       "acquisition_mix": {
-        "google": 6.87,
-        "instagram": 22.03,
-        "facebook": 24.99,
-        "organic": 8.71,
-        "referral": 4.44,
-        "email": 32.96
+        "google": 0.39,
+        "instagram": 26.58,
+        "facebook": 24.09,
+        "organic": 4.28,
+        "referral": 23.01,
+        "email": 21.65
       },
-      "margin": 0.3187,
-      "traffic": 11844,
-      "active_users": 4737,
-      "current_ctr": 0.0272,
-      "current_roas": 4.18,
-      "orders": 458,
-      "revenue": 2202031.94,
-      "profit": 701787.58,
-      "conversion_rate": 0.0387,
-      "retention_rate": 0.2464,
-      "avg_ltv": 27483.52
+      "age_group_mix": {
+        "0-25": 24.07,
+        "25-45": 63.43,
+        "45+": 12.5
+      },
+      "margin": 0.3265,
+      "traffic": 7868,
+      "active_users": 3147,
+      "current_ctr": 0.0271,
+      "current_roas": 2.78,
+      "orders": 285,
+      "revenue": 904971.9,
+      "profit": 295473.33,
+      "conversion_rate": 0.0363,
+      "retention_rate": 0.3696,
+      "avg_ltv": 14698.99
     },
     "behavior_parameters": {
       "price_sensitivity": 1.0,

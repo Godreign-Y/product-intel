@@ -148,9 +148,24 @@ class StateTransitionEngine:
         day_state.sales_channel_mix = MixNormalizer.normalize(day_state.sales_channel_mix)
         day_state.campaign_mix = MixNormalizer.normalize(day_state.campaign_mix)
         day_state.acquisition_mix = MixNormalizer.normalize(day_state.acquisition_mix)
+        day_state.age_group_mix = MixNormalizer.normalize(day_state.age_group_mix)
         persistent_state.sales_channel_mix = MixNormalizer.normalize(persistent_state.sales_channel_mix)
         persistent_state.campaign_mix = MixNormalizer.normalize(persistent_state.campaign_mix)
         persistent_state.acquisition_mix = MixNormalizer.normalize(persistent_state.acquisition_mix)
+        persistent_state.age_group_mix = MixNormalizer.normalize(persistent_state.age_group_mix)
+        
+        # 3.5 Age Group Causal Reactions
+        insta = day_state.acquisition_mix.get("instagram", 0.0)
+        social_camp = day_state.campaign_mix.get("social", 0.0)
+        if insta > 20.0 or social_camp > 20.0:
+            day_state.age_group_mix["0-25"] = day_state.age_group_mix.get("0-25", 0.0) + ((insta + social_camp) * 0.05)
+            
+        email = day_state.acquisition_mix.get("email", 0.0)
+        affiliate = day_state.campaign_mix.get("affiliate", 0.0)
+        if email > 20.0 or affiliate > 20.0:
+            day_state.age_group_mix["45+"] = day_state.age_group_mix.get("45+", 0.0) + ((email + affiliate) * 0.05)
+            
+        day_state.age_group_mix = MixNormalizer.normalize(day_state.age_group_mix)
         
         # 4. Market Propagation
         prev_state = trajectory[-1] if trajectory else persistent_state
@@ -200,13 +215,14 @@ class StateTransitionEngine:
             day_state.retention_rate = min(1.0, max(0.0, float(day_state.retention_rate * random.gauss(1.0, 0.005))))
             
             # Mixes volatility
-            for m_dict in [day_state.sales_channel_mix, day_state.campaign_mix, day_state.acquisition_mix]:
+            for m_dict in [day_state.sales_channel_mix, day_state.campaign_mix, day_state.acquisition_mix, day_state.age_group_mix]:
                 for k in m_dict:
                     m_dict[k] = max(0.01, m_dict[k] * random.gauss(1.0, 0.04))
             
             day_state.sales_channel_mix = MixNormalizer.normalize(day_state.sales_channel_mix)
             day_state.campaign_mix = MixNormalizer.normalize(day_state.campaign_mix)
             day_state.acquisition_mix = MixNormalizer.normalize(day_state.acquisition_mix)
+            day_state.age_group_mix = MixNormalizer.normalize(day_state.age_group_mix)
             
             # Re-derive downstream metrics to organically inherit the noise
             day_state = DerivedMetricsEngine.compute(day_state)

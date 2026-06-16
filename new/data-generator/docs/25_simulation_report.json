@@ -11,16 +11,192 @@
     "mix_violations": 0,
     "negative_inventory": 0,
     "stockout_events": 0,
-    "restock_events": 12527
+    "restock_events": 18129
   },
   "elasticity_checks": {
     "passed": false,
-    "events_analyzed": 188,
+    "events_analyzed": 207,
     "status": "Failed",
     "failed_events": [
       {
         "type": "Price Increase",
-        "trajectory": "016a26fe-1c86-4d41-b550-e9ca9699f866",
+        "trajectory": "07fa4825-844e-42f0-ad84-f89debe97ee3",
+        "day": 12,
+        "conv_down": false,
+        "orders_down": false,
+        "passed": false
+      },
+      {
+        "type": "Price Increase",
+        "trajectory": "0bfe0fd2-1ad2-4529-8b38-337f8f68e3b0",
+        "day": 137,
+        "conv_down": false,
+        "orders_down": false,
+        "passed": false
+      },
+      {
+        "type": "Price Increase",
+        "trajectory": "1e18ab88-4d5f-43d4-ad52-a129b008e154",
+        "day": 84,
+        "conv_down": true,
+        "orders_down": false,
+        "passed": false
+      },
+      {
+        "type": "Price Increase",
+        "trajectory": "2394035a-f171-496e-ae29-f3c380de53b9",
+        "day": 259,
+        "conv_down": false,
+        "orders_down": true,
+        "passed": false
+      },
+      {
+        "type": "Price Increase",
+        "trajectory": "2873a952-4bf5-4847-8966-c299de1bed0e",
+        "day": 201,
+        "conv_down": false,
+        "orders_down": false,
+        "passed": false
+      },
+      {
+        "type": "Price Increase",
+        "trajectory": "2d352a46-3346-4f28-89d4-ccae1203f858",
+        "day": 357,
+        "conv_down": false,
+        "orders_down": true,
+        "passed": false
+      },
+      {
+        "type": "Price Increase",
+        "trajectory": "3276bf0d-d09f-4700-8863-91f9638449ca",
+        "day": 260,
+        "conv_down": false,
+        "orders_down": true,
+        "passed": false
+      },
+      {
+        "type": "Price Increase",
+        "trajectory": "3978fc0d-bf11-4e6c-abe0-334fd4289aec",
+        "day": 122,
+        "conv_down": false,
+        "orders_down": true,
+        "passed": false
+      },
+      {
+        "type": "Price Increase",
+        "trajectory": "5174fd96-bda3-49db-99f5-af7e545d4f72",
+        "day": 189,
+        "conv_down": false,
+        "orders_down": true,
+        "passed": false
+      },
+      {
+        "type": "Price Increase",
+        "trajectory": "5b9b1118-7ad8-4837-a0c1-2155cbc849e0",
+        "day": 202,
+        "conv_down": false,
+        "orders_down": false,
+        "passed": false
+      },
+      {
+        "type": "Price Increase",
+        "trajectory": "68dc5030-bad5-49cc-bcdc-6640f9795947",
+        "day": 64,
+        "conv_down": false,
+        "orders_down": true,
+        "passed": false
+      },
+      {
+        "type": "Price Increase",
+        "trajectory": "69b004bd-0e3e-40ac-a3b3-c93fe7ce0c52",
+        "day": 211,
+        "conv_down": true,
+        "orders_down": false,
+        "passed": false
+      },
+      {
+        "type": "Price Increase",
+        "trajectory": "6c9a7d7f-801b-4996-b4e9-8e532f44ec59",
+        "day": 163,
+        "conv_down": false,
+        "orders_down": true,
+        "passed": false
+      },
+      {
+        "type": "Price Increase",
+        "trajectory": "6f138d16-590c-4bfd-b12f-467ab068f323",
+        "day": 111,
+        "conv_down": false,
+        "orders_down": true,
+        "passed": false
+      },
+      {
+        "type": "Price Increase",
+        "trajectory": "824c3fe6-f36e-4ad8-8402-ec9a3a0ee99b",
+        "day": 51,
+        "conv_down": false,
+        "orders_down": true,
+        "passed": false
+      },
+      {
+        "type": "Price Increase",
+        "trajectory": "8415ee39-d1a9-4d85-95b6-1b7ffba2783b",
+        "day": 334,
+        "conv_down": false,
+        "orders_down": true,
+        "passed": false
+      },
+      {
+        "type": "Price Increase",
+        "trajectory": "8d57b6d9-5332-4b2c-90b9-fbf0da0b66df",
+        "day": 209,
+        "conv_down": false,
+        "orders_down": true,
+        "passed": false
+      },
+      {
+        "type": "Price Increase",
+        "trajectory": "8f07c276-271b-4cdb-9f0e-da9ed2f116fd",
+        "day": 43,
+        "conv_down": false,
+        "orders_down": true,
+        "passed": false
+      },
+      {
+        "type": "Price Increase",
+        "trajectory": "8f07c276-271b-4cdb-9f0e-da9ed2f116fd",
+        "day": 300,
+        "conv_down": false,
+        "orders_down": true,
+        "passed": false
+      },
+      {
+        "type": "Price Increase",
+        "trajectory": "8f16db6c-90b0-4f47-985a-27f30369f77c",
+        "day": 149,
+        "conv_down": true,
+        "orders_down": false,
+        "passed": false
+      },
+      {
+        "type": "Price Increase",
+        "trajectory": "8f16db6c-90b0-4f47-985a-27f30369f77c",
+        "day": 286,
+        "conv_down": true,
+        "orders_down": false,
+        "passed": false
+      },
+      {
+        "type": "Price Increase",
+        "trajectory": "9a834306-6e27-4bcb-8208-4c802ed9ffd7",
+        "day": 322,
+        "conv_down": false,
+        "orders_down": false,
+        "passed": false
+      },
+      {
+        "type": "Price Increase",
+        "trajectory": "a521de69-7403-4d82-8b46-dfd24344b409",
         "day": 286,
         "conv_down": false,
         "orders_down": true,
@@ -28,55 +204,47 @@
       },
       {
         "type": "Price Increase",
-        "trajectory": "04c960ee-f8c2-46c5-958a-59477fdc92f9",
-        "day": 45,
+        "trajectory": "ae945bf3-15af-442d-8511-00b71bb8fc2e",
+        "day": 55,
         "conv_down": false,
         "orders_down": true,
         "passed": false
       },
       {
         "type": "Price Increase",
-        "trajectory": "176f9567-3474-4963-bc17-9a4732740150",
-        "day": 362,
-        "conv_down": false,
-        "orders_down": true,
-        "passed": false
-      },
-      {
-        "type": "Price Increase",
-        "trajectory": "1f0692b7-7c74-479d-9dc6-f509b3dc1216",
-        "day": 136,
+        "trajectory": "b179c626-f22b-4457-8cc8-bf7b558ac7bf",
+        "day": 2,
         "conv_down": true,
         "orders_down": false,
         "passed": false
       },
       {
         "type": "Price Increase",
-        "trajectory": "5026b122-1181-4e09-aff6-197b3a34c76e",
-        "day": 33,
+        "trajectory": "c1a36a49-a352-4cd0-af3b-630adbf412b0",
+        "day": 158,
+        "conv_down": false,
+        "orders_down": true,
+        "passed": false
+      },
+      {
+        "type": "Price Increase",
+        "trajectory": "c25c9a73-4032-4cf0-8a0d-85993c69bbd2",
+        "day": 149,
+        "conv_down": false,
+        "orders_down": true,
+        "passed": false
+      },
+      {
+        "type": "Price Increase",
+        "trajectory": "c2ecf75b-85ef-4610-98b4-ea07a7fcce0a",
+        "day": 274,
         "conv_down": false,
         "orders_down": false,
         "passed": false
       },
       {
         "type": "Price Increase",
-        "trajectory": "5a686814-d618-4df7-adb0-e3140386f40e",
-        "day": 71,
-        "conv_down": false,
-        "orders_down": true,
-        "passed": false
-      },
-      {
-        "type": "Price Increase",
-        "trajectory": "7dc3032c-144e-46e3-9757-803701960e0f",
-        "day": 8,
-        "conv_down": false,
-        "orders_down": true,
-        "passed": false
-      },
-      {
-        "type": "Price Increase",
-        "trajectory": "8003a972-473c-473a-b05a-2304f9a91aaf",
+        "trajectory": "cebba9e4-13a5-48a1-a99c-a67adc804a37",
         "day": 118,
         "conv_down": false,
         "orders_down": false,
@@ -84,167 +252,79 @@
       },
       {
         "type": "Price Increase",
-        "trajectory": "8140ec44-10e1-406e-a66c-eb914bcdd12d",
-        "day": 209,
+        "trajectory": "d32a9e84-3c67-4dd4-90d1-5da890d6e761",
+        "day": 124,
+        "conv_down": false,
+        "orders_down": true,
+        "passed": false
+      },
+      {
+        "type": "Price Increase",
+        "trajectory": "d754e255-18c5-4051-95b2-88b39845a8f2",
+        "day": 244,
+        "conv_down": false,
+        "orders_down": true,
+        "passed": false
+      },
+      {
+        "type": "Price Increase",
+        "trajectory": "dac6b35f-d265-4eb1-a27d-c4c9cddb48e9",
+        "day": 199,
+        "conv_down": false,
+        "orders_down": true,
+        "passed": false
+      },
+      {
+        "type": "Price Increase",
+        "trajectory": "dac6b35f-d265-4eb1-a27d-c4c9cddb48e9",
+        "day": 341,
+        "conv_down": false,
+        "orders_down": true,
+        "passed": false
+      },
+      {
+        "type": "Price Increase",
+        "trajectory": "df3ca4ec-c636-4634-998b-ab4f64f88430",
+        "day": 360,
         "conv_down": false,
         "orders_down": false,
         "passed": false
       },
       {
         "type": "Price Increase",
-        "trajectory": "8341a971-2ccc-41fa-83f1-d819fbe58a8b",
-        "day": 111,
+        "trajectory": "e04318d4-a4ca-495a-90d1-018b2ec94df9",
+        "day": 295,
+        "conv_down": true,
+        "orders_down": false,
+        "passed": false
+      },
+      {
+        "type": "Price Increase",
+        "trajectory": "e1e1a457-ac9f-43f5-8977-c0dace54e4e1",
+        "day": 198,
+        "conv_down": false,
+        "orders_down": true,
+        "passed": false
+      },
+      {
+        "type": "Price Increase",
+        "trajectory": "e2aad0f3-e449-4b17-bd9b-001ea00aa4f4",
+        "day": 120,
+        "conv_down": false,
+        "orders_down": true,
+        "passed": false
+      },
+      {
+        "type": "Price Increase",
+        "trajectory": "e2aad0f3-e449-4b17-bd9b-001ea00aa4f4",
+        "day": 222,
         "conv_down": false,
         "orders_down": false,
         "passed": false
       },
       {
         "type": "Price Increase",
-        "trajectory": "858afc82-2416-4fec-b91c-ed492282caf2",
-        "day": 47,
-        "conv_down": false,
-        "orders_down": true,
-        "passed": false
-      },
-      {
-        "type": "Price Increase",
-        "trajectory": "87402447-c6a7-445a-8dd7-8806fcfa983e",
-        "day": 201,
-        "conv_down": false,
-        "orders_down": true,
-        "passed": false
-      },
-      {
-        "type": "Price Increase",
-        "trajectory": "87402447-c6a7-445a-8dd7-8806fcfa983e",
-        "day": 331,
-        "conv_down": false,
-        "orders_down": true,
-        "passed": false
-      },
-      {
-        "type": "Price Increase",
-        "trajectory": "913d255a-eda3-4f5f-ab4f-d61653c847d3",
-        "day": 184,
-        "conv_down": false,
-        "orders_down": true,
-        "passed": false
-      },
-      {
-        "type": "Price Increase",
-        "trajectory": "967058bd-825c-40bf-925c-5fb36c9665f4",
-        "day": 112,
-        "conv_down": false,
-        "orders_down": true,
-        "passed": false
-      },
-      {
-        "type": "Price Increase",
-        "trajectory": "a2e968d1-0e56-4be2-9760-396d2837d8fd",
-        "day": 228,
-        "conv_down": false,
-        "orders_down": true,
-        "passed": false
-      },
-      {
-        "type": "Price Increase",
-        "trajectory": "a80adc41-ad69-4df7-9ddd-453b2c9430f8",
-        "day": 118,
-        "conv_down": false,
-        "orders_down": false,
-        "passed": false
-      },
-      {
-        "type": "Price Increase",
-        "trajectory": "a80adc41-ad69-4df7-9ddd-453b2c9430f8",
-        "day": 119,
-        "conv_down": false,
-        "orders_down": true,
-        "passed": false
-      },
-      {
-        "type": "Price Increase",
-        "trajectory": "a974d0bb-9825-4c2c-b461-8b7499e88396",
-        "day": 40,
-        "conv_down": false,
-        "orders_down": true,
-        "passed": false
-      },
-      {
-        "type": "Price Increase",
-        "trajectory": "ad2491ca-16ae-40d9-8ad3-2c3255743465",
-        "day": 175,
-        "conv_down": false,
-        "orders_down": true,
-        "passed": false
-      },
-      {
-        "type": "Price Increase",
-        "trajectory": "ad2491ca-16ae-40d9-8ad3-2c3255743465",
-        "day": 176,
-        "conv_down": false,
-        "orders_down": true,
-        "passed": false
-      },
-      {
-        "type": "Price Increase",
-        "trajectory": "b8c495d9-4b0a-4114-baf9-88bafa053527",
-        "day": 112,
-        "conv_down": false,
-        "orders_down": true,
-        "passed": false
-      },
-      {
-        "type": "Price Increase",
-        "trajectory": "be9ec524-68da-4a8a-95ce-2574b4ed6f42",
-        "day": 129,
-        "conv_down": false,
-        "orders_down": true,
-        "passed": false
-      },
-      {
-        "type": "Price Increase",
-        "trajectory": "be9ec524-68da-4a8a-95ce-2574b4ed6f42",
-        "day": 130,
-        "conv_down": false,
-        "orders_down": true,
-        "passed": false
-      },
-      {
-        "type": "Price Increase",
-        "trajectory": "cc7a692f-4720-4507-848a-b98a15577944",
-        "day": 322,
-        "conv_down": false,
-        "orders_down": true,
-        "passed": false
-      },
-      {
-        "type": "Price Increase",
-        "trajectory": "daa691cc-5f11-4099-b79d-2ed418dc4114",
-        "day": 50,
-        "conv_down": false,
-        "orders_down": true,
-        "passed": false
-      },
-      {
-        "type": "Price Increase",
-        "trajectory": "daa691cc-5f11-4099-b79d-2ed418dc4114",
-        "day": 177,
-        "conv_down": false,
-        "orders_down": false,
-        "passed": false
-      },
-      {
-        "type": "Price Increase",
-        "trajectory": "ddec5788-9fc4-4745-852c-5c6bb92e7bfe",
-        "day": 33,
-        "conv_down": false,
-        "orders_down": true,
-        "passed": false
-      },
-      {
-        "type": "Price Increase",
-        "trajectory": "e4a0efc7-d332-4711-801c-bf961dd41993",
+        "trajectory": "f08c7fa9-9cad-4338-860f-5bafe0599cff",
         "day": 298,
         "conv_down": false,
         "orders_down": true,
@@ -252,47 +332,15 @@
       },
       {
         "type": "Price Increase",
-        "trajectory": "e5f4117c-85dd-46e9-842e-bc9132a38c95",
-        "day": 177,
+        "trajectory": "f8890ef0-fe8d-4996-80be-33a703bd4551",
+        "day": 8,
         "conv_down": false,
-        "orders_down": true,
-        "passed": false
-      },
-      {
-        "type": "Price Increase",
-        "trajectory": "eea7a00e-614f-41e3-99ad-886d77bc641d",
-        "day": 272,
-        "conv_down": true,
         "orders_down": false,
         "passed": false
       },
       {
         "type": "Price Increase",
-        "trajectory": "f62fb316-194a-48f0-a5c1-9ad07f4babd9",
-        "day": 180,
-        "conv_down": false,
-        "orders_down": true,
-        "passed": false
-      },
-      {
-        "type": "Price Increase",
-        "trajectory": "f62fb316-194a-48f0-a5c1-9ad07f4babd9",
-        "day": 273,
-        "conv_down": false,
-        "orders_down": true,
-        "passed": false
-      },
-      {
-        "type": "Price Increase",
-        "trajectory": "f62fb316-194a-48f0-a5c1-9ad07f4babd9",
-        "day": 274,
-        "conv_down": false,
-        "orders_down": true,
-        "passed": false
-      },
-      {
-        "type": "Price Increase",
-        "trajectory": "f62fb316-194a-48f0-a5c1-9ad07f4babd9",
+        "trajectory": "f8890ef0-fe8d-4996-80be-33a703bd4551",
         "day": 316,
         "conv_down": false,
         "orders_down": true,
@@ -300,8 +348,17 @@
       },
       {
         "type": "Marketing Increase",
-        "trajectory": "0c06f2fc-3aaa-4151-a37d-99f34cab2699",
-        "day": 4,
+        "trajectory": "0a5571b2-fd62-4c99-9a9f-d3c500169133",
+        "day": 181,
+        "traffic_up": false,
+        "users_up": false,
+        "orders_up": true,
+        "passed": false
+      },
+      {
+        "type": "Marketing Increase",
+        "trajectory": "0d022dcb-e724-4586-bf66-2be6ff23d2f2",
+        "day": 107,
         "traffic_up": false,
         "users_up": false,
         "orders_up": false,
@@ -309,8 +366,44 @@
       },
       {
         "type": "Marketing Increase",
-        "trajectory": "31bcfb32-733f-416a-9247-d430e2230443",
-        "day": 72,
+        "trajectory": "1c2f089a-d7fe-461d-ae2e-023dcac3f452",
+        "day": 11,
+        "traffic_up": false,
+        "users_up": false,
+        "orders_up": true,
+        "passed": false
+      },
+      {
+        "type": "Marketing Increase",
+        "trajectory": "1e18ab88-4d5f-43d4-ad52-a129b008e154",
+        "day": 148,
+        "traffic_up": false,
+        "users_up": false,
+        "orders_up": true,
+        "passed": false
+      },
+      {
+        "type": "Marketing Increase",
+        "trajectory": "2ec086e7-2b01-4f32-8e4a-965967ee895d",
+        "day": 294,
+        "traffic_up": false,
+        "users_up": false,
+        "orders_up": true,
+        "passed": false
+      },
+      {
+        "type": "Marketing Increase",
+        "trajectory": "30cfbefd-538a-4ca2-aa53-a269b6cb696b",
+        "day": 245,
+        "traffic_up": false,
+        "users_up": false,
+        "orders_up": true,
+        "passed": false
+      },
+      {
+        "type": "Marketing Increase",
+        "trajectory": "30cfbefd-538a-4ca2-aa53-a269b6cb696b",
+        "day": 318,
         "traffic_up": false,
         "users_up": false,
         "orders_up": false,
@@ -318,17 +411,8 @@
       },
       {
         "type": "Marketing Increase",
-        "trajectory": "31bcfb32-733f-416a-9247-d430e2230443",
-        "day": 73,
-        "traffic_up": false,
-        "users_up": false,
-        "orders_up": true,
-        "passed": false
-      },
-      {
-        "type": "Marketing Increase",
-        "trajectory": "32d32a77-a261-4cad-82db-58225835fed4",
-        "day": 233,
+        "trajectory": "366a6f5f-2190-4355-9441-414d71be74e8",
+        "day": 26,
         "traffic_up": false,
         "users_up": false,
         "orders_up": false,
@@ -336,214 +420,7 @@
       },
       {
         "type": "Marketing Increase",
-        "trajectory": "4b3466e2-9e3a-4247-bf0a-c452e5223c1a",
-        "day": 214,
-        "traffic_up": false,
-        "users_up": false,
-        "orders_up": true,
-        "passed": false
-      },
-      {
-        "type": "Marketing Increase",
-        "trajectory": "4bc02b2e-a947-4766-acb6-3d7435664586",
-        "day": 134,
-        "traffic_up": false,
-        "users_up": false,
-        "orders_up": true,
-        "passed": false
-      },
-      {
-        "type": "Marketing Increase",
-        "trajectory": "56b58372-6072-4b69-98de-d2bd2982edb8",
-        "day": 257,
-        "traffic_up": false,
-        "users_up": false,
-        "orders_up": true,
-        "passed": false
-      },
-      {
-        "type": "Marketing Increase",
-        "trajectory": "56b58372-6072-4b69-98de-d2bd2982edb8",
-        "day": 305,
-        "traffic_up": false,
-        "users_up": false,
-        "orders_up": true,
-        "passed": false
-      },
-      {
-        "type": "Marketing Increase",
-        "trajectory": "5c6931fd-3929-4092-a5bc-51d9d5c49d45",
-        "day": 169,
-        "traffic_up": false,
-        "users_up": false,
-        "orders_up": false,
-        "passed": false
-      },
-      {
-        "type": "Marketing Increase",
-        "trajectory": "648adc46-d180-4bfb-8f44-f677a7a667ab",
-        "day": 184,
-        "traffic_up": false,
-        "users_up": false,
-        "orders_up": true,
-        "passed": false
-      },
-      {
-        "type": "Marketing Increase",
-        "trajectory": "684537ea-5acc-4e5e-9830-7b6dcd4d2c9f",
-        "day": 12,
-        "traffic_up": false,
-        "users_up": false,
-        "orders_up": true,
-        "passed": false
-      },
-      {
-        "type": "Marketing Increase",
-        "trajectory": "6d7605a0-6e6c-494d-a776-1d046a684659",
-        "day": 112,
-        "traffic_up": false,
-        "users_up": true,
-        "orders_up": true,
-        "passed": false
-      },
-      {
-        "type": "Marketing Increase",
-        "trajectory": "6d7605a0-6e6c-494d-a776-1d046a684659",
-        "day": 113,
-        "traffic_up": false,
-        "users_up": false,
-        "orders_up": true,
-        "passed": false
-      },
-      {
-        "type": "Marketing Increase",
-        "trajectory": "708720cc-632b-4614-aa6c-f6579bddf95d",
-        "day": 74,
-        "traffic_up": false,
-        "users_up": false,
-        "orders_up": true,
-        "passed": false
-      },
-      {
-        "type": "Marketing Increase",
-        "trajectory": "732fe9e6-910e-406d-b92f-23ba2c217ead",
-        "day": 300,
-        "traffic_up": false,
-        "users_up": false,
-        "orders_up": true,
-        "passed": false
-      },
-      {
-        "type": "Marketing Increase",
-        "trajectory": "7d607729-fba9-4c88-8f71-abd935c91c9e",
-        "day": 246,
-        "traffic_up": true,
-        "users_up": false,
-        "orders_up": true,
-        "passed": false
-      },
-      {
-        "type": "Marketing Increase",
-        "trajectory": "8e4c7fbb-f8f3-410e-a59b-f2fe9be7b3f9",
-        "day": 2,
-        "traffic_up": false,
-        "users_up": false,
-        "orders_up": true,
-        "passed": false
-      },
-      {
-        "type": "Marketing Increase",
-        "trajectory": "9b078630-f719-4920-b00f-4b883e322bb6",
-        "day": 17,
-        "traffic_up": true,
-        "users_up": true,
-        "orders_up": false,
-        "passed": false
-      },
-      {
-        "type": "Marketing Increase",
-        "trajectory": "a1f8c259-1ad5-428a-bbc1-c328123718c2",
-        "day": 59,
-        "traffic_up": false,
-        "users_up": false,
-        "orders_up": true,
-        "passed": false
-      },
-      {
-        "type": "Marketing Increase",
-        "trajectory": "ada154d8-aefc-4bf2-92ba-9ac5c1476068",
-        "day": 196,
-        "traffic_up": false,
-        "users_up": false,
-        "orders_up": true,
-        "passed": false
-      },
-      {
-        "type": "Marketing Increase",
-        "trajectory": "be9ec524-68da-4a8a-95ce-2574b4ed6f42",
-        "day": 106,
-        "traffic_up": false,
-        "users_up": false,
-        "orders_up": true,
-        "passed": false
-      },
-      {
-        "type": "Marketing Increase",
-        "trajectory": "be9ec524-68da-4a8a-95ce-2574b4ed6f42",
-        "day": 355,
-        "traffic_up": false,
-        "users_up": false,
-        "orders_up": true,
-        "passed": false
-      },
-      {
-        "type": "Marketing Increase",
-        "trajectory": "cbef8f2a-6f6b-4138-ae4e-4751f197f667",
-        "day": 348,
-        "traffic_up": false,
-        "users_up": false,
-        "orders_up": true,
-        "passed": false
-      },
-      {
-        "type": "Marketing Increase",
-        "trajectory": "d06d77aa-30b3-418b-b328-e266f7e701ef",
-        "day": 47,
-        "traffic_up": false,
-        "users_up": false,
-        "orders_up": true,
-        "passed": false
-      },
-      {
-        "type": "Marketing Increase",
-        "trajectory": "d06d77aa-30b3-418b-b328-e266f7e701ef",
-        "day": 226,
-        "traffic_up": true,
-        "users_up": false,
-        "orders_up": true,
-        "passed": false
-      },
-      {
-        "type": "Marketing Increase",
-        "trajectory": "d5cdaa4b-63b3-4d9f-827d-3f6e721a2bd4",
-        "day": 210,
-        "traffic_up": true,
-        "users_up": true,
-        "orders_up": false,
-        "passed": false
-      },
-      {
-        "type": "Marketing Increase",
-        "trajectory": "dd2a6d87-d8ea-423f-8512-1e20d62c41a9",
-        "day": 308,
-        "traffic_up": false,
-        "users_up": false,
-        "orders_up": true,
-        "passed": false
-      },
-      {
-        "type": "Marketing Increase",
-        "trajectory": "de4751f5-09a3-4b8c-b6be-512c4c024133",
+        "trajectory": "3978fc0d-bf11-4e6c-abe0-334fd4289aec",
         "day": 121,
         "traffic_up": false,
         "users_up": false,
@@ -552,8 +429,62 @@
       },
       {
         "type": "Marketing Increase",
-        "trajectory": "e5f4117c-85dd-46e9-842e-bc9132a38c95",
-        "day": 316,
+        "trajectory": "50653f8e-4764-4c15-8a24-e6241455139e",
+        "day": 1,
+        "traffic_up": false,
+        "users_up": false,
+        "orders_up": false,
+        "passed": false
+      },
+      {
+        "type": "Marketing Increase",
+        "trajectory": "56a1ca40-70c4-4ac1-8a6f-dc1ef5406e3a",
+        "day": 70,
+        "traffic_up": true,
+        "users_up": true,
+        "orders_up": false,
+        "passed": false
+      },
+      {
+        "type": "Marketing Increase",
+        "trajectory": "7473a9e6-3f6d-4111-aadc-4f4509ef41fa",
+        "day": 256,
+        "traffic_up": false,
+        "users_up": false,
+        "orders_up": false,
+        "passed": false
+      },
+      {
+        "type": "Marketing Increase",
+        "trajectory": "7473a9e6-3f6d-4111-aadc-4f4509ef41fa",
+        "day": 304,
+        "traffic_up": false,
+        "users_up": false,
+        "orders_up": false,
+        "passed": false
+      },
+      {
+        "type": "Marketing Increase",
+        "trajectory": "8da1f532-4c7e-4293-a736-a279f9062732",
+        "day": 189,
+        "traffic_up": false,
+        "users_up": false,
+        "orders_up": false,
+        "passed": false
+      },
+      {
+        "type": "Marketing Increase",
+        "trajectory": "9046d7d0-23f3-42f9-8d75-74455c529979",
+        "day": 3,
+        "traffic_up": false,
+        "users_up": false,
+        "orders_up": false,
+        "passed": false
+      },
+      {
+        "type": "Marketing Increase",
+        "trajectory": "9046d7d0-23f3-42f9-8d75-74455c529979",
+        "day": 126,
         "traffic_up": false,
         "users_up": false,
         "orders_up": true,
@@ -561,11 +492,92 @@
       },
       {
         "type": "Marketing Increase",
-        "trajectory": "f10b1371-8763-4afa-beb9-a152be150896",
-        "day": 315,
+        "trajectory": "90f6633a-72d2-45ed-bb35-c86a6e5821f3",
+        "day": 32,
         "traffic_up": true,
         "users_up": true,
         "orders_up": false,
+        "passed": false
+      },
+      {
+        "type": "Marketing Increase",
+        "trajectory": "a1455b2d-30d1-4c20-a2d5-7c5a360f4ec4",
+        "day": 16,
+        "traffic_up": true,
+        "users_up": true,
+        "orders_up": false,
+        "passed": false
+      },
+      {
+        "type": "Marketing Increase",
+        "trajectory": "a521de69-7403-4d82-8b46-dfd24344b409",
+        "day": 193,
+        "traffic_up": false,
+        "users_up": false,
+        "orders_up": true,
+        "passed": false
+      },
+      {
+        "type": "Marketing Increase",
+        "trajectory": "b4f3d890-8426-4f0a-9957-a379c91e3555",
+        "day": 183,
+        "traffic_up": false,
+        "users_up": false,
+        "orders_up": false,
+        "passed": false
+      },
+      {
+        "type": "Marketing Increase",
+        "trajectory": "b6060328-ba81-47e0-8160-67f94c361df3",
+        "day": 128,
+        "traffic_up": false,
+        "users_up": false,
+        "orders_up": true,
+        "passed": false
+      },
+      {
+        "type": "Marketing Increase",
+        "trajectory": "bf886f22-ff92-475c-b54f-85cab4dab7fb",
+        "day": 120,
+        "traffic_up": false,
+        "users_up": false,
+        "orders_up": true,
+        "passed": false
+      },
+      {
+        "type": "Marketing Increase",
+        "trajectory": "c1605813-bc3d-4448-a196-eaf73d5629f2",
+        "day": 357,
+        "traffic_up": false,
+        "users_up": false,
+        "orders_up": true,
+        "passed": false
+      },
+      {
+        "type": "Marketing Increase",
+        "trajectory": "d9188b23-86cf-4898-b1b6-1548faf823db",
+        "day": 186,
+        "traffic_up": false,
+        "users_up": false,
+        "orders_up": true,
+        "passed": false
+      },
+      {
+        "type": "Marketing Increase",
+        "trajectory": "dca065eb-ad05-45c0-a7c8-480318a9e371",
+        "day": 288,
+        "traffic_up": false,
+        "users_up": false,
+        "orders_up": true,
+        "passed": false
+      },
+      {
+        "type": "Marketing Increase",
+        "trajectory": "df3ca4ec-c636-4634-998b-ab4f64f88430",
+        "day": 81,
+        "traffic_up": false,
+        "users_up": true,
+        "orders_up": true,
         "passed": false
       }
     ]
@@ -573,16 +585,18 @@
   "causality_checks": {
     "passed": false,
     "correlations": {
-      "traffic_to_active_users": 0.9969725470463352,
-      "active_users_to_orders": 0.7789860903712672,
-      "conversion_rate_to_orders": 0.5160367116754615,
-      "orders_to_revenue": 0.8261388118171908,
-      "revenue_to_profit": 0.8607217611058461,
-      "retention_rate_to_avg_ltv": 0.002919302568200947
+      "traffic_to_active_users": 0.9953134440036167,
+      "active_users_to_orders": 0.8034173748946408,
+      "conversion_rate_to_orders": 0.532753493054211,
+      "orders_to_revenue": 0.6213467807172278,
+      "revenue_to_profit": 0.671633054606057,
+      "retention_rate_to_avg_ltv": -0.0002366853402086024
     },
     "failed_correlations": [
-      "conversion_rate -> orders expected > 0.6, but got 0.5160",
-      "retention_rate -> avg_ltv expected > 0.7, but got 0.0029"
+      "conversion_rate -> orders expected > 0.6, but got 0.5328",
+      "orders -> revenue expected > 0.7, but got 0.6213",
+      "revenue -> profit expected > 0.7, but got 0.6716",
+      "retention_rate -> avg_ltv expected > 0.7, but got -0.0002"
     ]
   }
 }

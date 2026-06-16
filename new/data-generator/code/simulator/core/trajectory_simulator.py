@@ -24,6 +24,8 @@ class AnchorStateResolver:
             sales_channel_mix=base.get("sales_channel_mix", {}),
             campaign_mix=base.get("campaign_mix", {}),
             acquisition_mix=base.get("acquisition_mix", {}),
+            age_group_mix=base.get("age_group_mix", {}),
+            category_id=product.get("category_id", 0),
             traffic=int(base.get("traffic", 500)),
             active_users=int(base.get("active_users", 200)),
             current_ctr=float(base.get("current_ctr", 0.05)),
