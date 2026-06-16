@@ -1,0 +1,95 @@
+{
+  "Price": {
+    "Traffic": -0.25,
+    "Active Users": -0.15,
+    "CTR": -0.1,
+    "Conversion": -0.8,
+    "Retention": -0.1,
+    "LTV": -0.05
+  },
+  "Discount": {
+    "Traffic": 0.35,
+    "Active Users": 0.25,
+    "CTR": 0.2,
+    "Conversion": 1.1,
+    "Retention": 0.2,
+    "LTV": 0.15
+  },
+  "Shipping Fee": {
+    "Traffic": -0.15,
+    "Active Users": -0.1,
+    "Conversion": -0.5,
+    "Retention": -0.15,
+    "LTV": -0.1
+  },
+  "Inventory": {
+    "Conversion": 0.2,
+    "Retention": 0.1,
+    "LTV": 0.05
+  },
+  "Marketing": {
+    "Traffic": 0.8,
+    "Active Users": 0.6,
+    "CTR": 0.25,
+    "Conversion": 0.1,
+    "Retention": 0.05,
+    "LTV": 0.05
+  },
+  "Website Share": {
+    "Profit": 0.6,
+    "Retention": 0.25,
+    "LTV": 0.2
+  },
+  "Amazon Share": {
+    "Profit": -0.2
+  },
+  "Search Share": {
+    "Conversion": 0.4
+  },
+  "Social Share": {
+    "Traffic": 0.5,
+    "CTR": 0.4
+  },
+  "Email Share": {
+    "Retention": 0.6,
+    "LTV": 0.5
+  },
+  "Google Share": {
+    "Conversion": 0.4
+  },
+  "Instagram Share": {
+    "Traffic": 0.5,
+    "CTR": 0.45
+  },
+  "Facebook Share": {
+    "Traffic": 0.35
+  },
+  "Organic Share": {
+    "Retention": 0.5,
+    "LTV": 0.6
+  },
+  "Referral Share": {
+    "Conversion": 0.45,
+    "Retention": 0.4,
+    "LTV": 0.5
+  },
+  "CTR": {
+    "Traffic": 0.7
+  },
+  "Traffic": {
+    "Active Users": 0.8
+  },
+  "Active Users": {
+    "Retention": 0.25
+  },
+  "Orders": {
+    "Retention": 0.5,
+    "LTV": 0.4
+  },
+  "Retention": {
+    "LTV": 0.9
+  },
+  "Revenue": {
+    "LTV": 0.2
+  }
+}

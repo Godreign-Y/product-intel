@@ -1,0 +1,7 @@
+{
+  "traffic": ["active_users"],
+  "active_users": ["orders"],
+  "conversion_rate": ["orders"],
+  "orders": ["revenue", "retention_rate"],
+  "retention_rate": ["avg_ltv"]
+}

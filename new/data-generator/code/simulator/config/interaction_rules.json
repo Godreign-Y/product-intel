@@ -1,0 +1,14 @@
+[
+  {
+    "action_a": "discount_pct",
+    "action_b": "marketing_spend",
+    "interaction_type": "synergy",
+    "multiplier": 1.25
+  },
+  {
+    "action_a": "marketing_spend",
+    "action_b": "marketing_spend",
+    "interaction_type": "saturation",
+    "multiplier": 0.75
+  }
+]

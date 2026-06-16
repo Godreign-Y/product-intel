@@ -245,13 +245,26 @@ def generate_product(product_id, archetype_name, cfg):
 
     revenue = round(orders * price, 2)
 
-    margin = random.uniform(0.2, 0.6)
+    margin = round(
+        random.uniform(0.2, 0.6),
+        4
+    )
 
-    profit = round(revenue * margin, 2)
+    profit = round(
+        revenue * margin,
+        2   
+    )
+
+
+    with open("simulator/config/simulation_assumptions.json", "r") as f:
+        assumptions = json.load(f)
+    
+    inventory_policy = assumptions["inventory_policies"].get(archetype_name, "weekly")
 
     return {
         "product_id": product_id,
         "archetype": archetype_name,
+        "inventory_policy": inventory_policy,
 
         "category": cfg["category"],
         "subcategory": cfg["subcategory"],
@@ -284,7 +297,7 @@ def generate_product(product_id, archetype_name, cfg):
                     "email"
                 ]
             ),
-
+            "margin": margin,
             "traffic": traffic,
             "active_users": int(traffic * 0.4),
 

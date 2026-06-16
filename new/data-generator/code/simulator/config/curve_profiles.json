@@ -1,0 +1,37 @@
+{
+  "immediate": {
+    "lag_days": 0,
+    "peak_days": 1,
+    "decay_days": 3
+  },
+  "fast": {
+    "lag_days": 1,
+    "peak_days": 5,
+    "decay_days": 30
+  },
+  "marketing": {
+    "lag_days": 2,
+    "peak_days": 14,
+    "decay_days": 60
+  },
+  "channel": {
+    "lag_days": 5,
+    "peak_days": 21,
+    "decay_days": 90
+  },
+  "acquisition": {
+    "lag_days": 7,
+    "peak_days": 30,
+    "decay_days": 120
+  },
+  "retention": {
+    "lag_days": 14,
+    "peak_days": 60,
+    "decay_days": 180
+  },
+  "seasonal": {
+    "lag_days": 0,
+    "peak_days": 0,
+    "decay_days": 365
+  }
+}

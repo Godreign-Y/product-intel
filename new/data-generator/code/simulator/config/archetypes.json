@@ -1,0 +1,10 @@
+{
+  "Premium Beauty": {
+    "price_sensitivity": 0.5,
+    "marketing_sensitivity": 1.5
+  },
+  "Mass Market": {
+    "price_sensitivity": 1.5,
+    "marketing_sensitivity": 1.0
+  }
+}

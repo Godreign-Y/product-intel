@@ -1,0 +1,28 @@
+{
+  "inventory_policies": {
+    "Mass Market Beauty": "weekly",
+    "Premium Beauty": "monthly",
+    "Impulse Purchase": "daily",
+    "Research Driven": "monthly",
+    "Premium Electronics": "monthly",
+    "Commodity FMCG": "daily",
+    "Subscription Product": "monthly",
+    "Trend Product": "dynamic",
+    "Luxury Product": "monthly",
+    "Inventory Sensitive": "weekly"
+  },
+  "persistence_rules": {
+    "avg_selling_price": true,
+    "shipping_fee": true,
+    "inventory_available": true,
+    "sales_channel_mix": true,
+    "campaign_mix": true,
+    "acquisition_mix": true,
+    "discount_pct": false,
+    "marketing_spend": false
+  },
+  "retention_decay": 0.95,
+  "ltv_update_alpha": 0.1,
+  "ltv_update_beta": 0.05,
+  "dynamic_inventory_coverage_days": 14
+}

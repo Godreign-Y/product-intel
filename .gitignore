@@ -31,3 +31,4 @@ __pycache__/
 
 # Testing
 .pytest_cache/
+new/data-generator/code/output/
