@@ -1,4 +1,37 @@
-venv/
-.env
+# Python caches and artifacts
+__pycache__/
+*.py[cod]
+*$py.class
 .pytest_cache/
+.coverage
+htmlcov/
+*.log
+
+# Environments
+.env
+.env.local
+venv/
+myenv/
+env/
+ENV/
+
+# Databases and large datasets
+data/test_historical_repository.db
+data/historical_repository.db
+temporal_dataset.csv
+
+# Pre-trained ML Models
 models/
+
+# System and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# Frontend dependency & build artifacts
+frontend/node_modules/
+frontend/dist/
+frontend/dist-ssr/

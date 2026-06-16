@@ -1,8 +1,11 @@
-from fastapi import FastAPI
+import os
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse, HTMLResponse
 from contextlib import asynccontextmanager
 
-from src.api.routers import forecast, explanation, scenario, optimization, analysis, analytics, sensitivity, agent
+from src.api.routers import forecast, explanation, scenario, optimization, analysis, analytics, sensitivity, agent, anomaly, history, decision
 from src.api.dependencies import load_app_state
 from src.utils.logger import setup_logger
 
@@ -13,6 +16,14 @@ async def lifespan(app: FastAPI):
     # Load and cache models, dataset, and explainers on startup
     logger.info("Initializing application models and dataset cache...")
     try:
+        # Import database config and models to register on Base metadata before create_all
+        from src.core.history.storage.database import engine, Base
+        import src.core.history.storage.models
+        import src.core.decision.storage.models
+        
+        logger.info("Ensuring database tables are created...")
+        Base.metadata.create_all(bind=engine)
+        
         load_app_state()
         logger.info("Application state initialized successfully.")
     except Exception as e:
@@ -53,3 +64,27 @@ app.include_router(analysis.router, prefix="/api/v1")
 app.include_router(analytics.router, prefix="/api/v1")
 app.include_router(sensitivity.router, prefix="/api/v1")
 app.include_router(agent.router, prefix="/api/v1")
+app.include_router(anomaly.router, prefix="/api/v1")
+app.include_router(history.router, prefix="/api/v1")
+app.include_router(decision.router, prefix="/api/v1")
+
+# Serve static files from React build directory
+frontend_dist_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "frontend", "dist")
+
+if os.path.exists(frontend_dist_path):
+    # Mount files other than index.html under /assets or root direct
+    app.mount("/assets", StaticFiles(directory=os.path.join(frontend_dist_path, "assets")), name="assets")
+
+@app.get("/{catchall:path}")
+async def serve_react_app(catchall: str):
+    # Skip routing if query is for API
+    if catchall.startswith("api/") or catchall.startswith("docs") or catchall.startswith("redoc") or catchall.startswith("openapi.json"):
+        raise HTTPException(status_code=404, detail="API endpoint not found")
+        
+    index_file = os.path.join(frontend_dist_path, "index.html")
+    if os.path.exists(index_file):
+        return FileResponse(index_file)
+        
+    return HTMLResponse(
+        content="<h1>AI Business Analytics Dashboard</h1><p>FastAPI backend is running. Please build the frontend React application to activate this visual dashboard.</p><p>API docs: <a href='/docs'>/docs</a></p>"
+    )

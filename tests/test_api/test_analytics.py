@@ -20,6 +20,8 @@ def test_analytics_kpi(client):
     assert "mean" in data["conversion_rate"]
     assert "retention_rate" in data
     assert "marketing_spend" in data
+    assert "average_order_value" in data
+    assert data["average_order_value"] >= 0
     assert "days_in_period" in data
     assert data["days_in_period"] == 10
 
@@ -28,12 +30,14 @@ def test_analytics_trend(client):
         "metric": "revenue",
         "start_date": "2025-01-01",
         "end_date": "2025-01-10",
-        "product_id": "P001"
+        "product_id": "P001",
+        "granularity": "daily"
     }
     response = client.post("/api/v1/analytics/trend", json=payload)
     assert response.status_code == 200
     data = response.json()
     assert data["metric"] == "revenue"
+    assert data["granularity"] == "daily"
     assert "direction" in data
     assert data["direction"] in ["increasing", "decreasing", "stable"]
     assert "slope" in data
@@ -42,6 +46,34 @@ def test_analytics_trend(client):
     assert "growth_rate_pct" in data
     assert "history" in data
     assert isinstance(data["history"], list)
+
+    # Test weekly trend
+    payload_weekly = {
+        "metric": "revenue",
+        "start_date": "2025-01-01",
+        "end_date": "2025-02-15",
+        "product_id": "P001",
+        "granularity": "weekly"
+    }
+    response_weekly = client.post("/api/v1/analytics/trend", json=payload_weekly)
+    assert response_weekly.status_code == 200
+    data_weekly = response_weekly.json()
+    assert data_weekly["granularity"] == "weekly"
+    assert len(data_weekly["history"]) > 0
+
+    # Test monthly trend
+    payload_monthly = {
+        "metric": "revenue",
+        "start_date": "2025-01-01",
+        "end_date": "2025-06-30",
+        "product_id": "P001",
+        "granularity": "monthly"
+    }
+    response_monthly = client.post("/api/v1/analytics/trend", json=payload_monthly)
+    assert response_monthly.status_code == 200
+    data_monthly = response_monthly.json()
+    assert data_monthly["granularity"] == "monthly"
+    assert len(data_monthly["history"]) > 0
 
 def test_analytics_benchmark(client):
     payload = {

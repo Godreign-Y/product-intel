@@ -37,7 +37,8 @@ async def get_trends_endpoint(
             metric=payload.metric,
             start_date=payload.start_date,
             end_date=payload.end_date,
-            product_id=payload.product_id
+            product_id=payload.product_id,
+            granularity=payload.granularity
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Trend calculation error: {str(e)}")

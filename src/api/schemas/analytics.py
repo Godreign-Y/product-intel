@@ -9,6 +9,7 @@ class AnalyticsRequest(BaseModel):
 
 class TrendRequest(AnalyticsRequest):
     metric: str = Field(default="revenue", description="Metric to analyze, e.g. revenue, profit, orders, traffic")
+    granularity: str = Field(default="daily", description="Granularity of the trend: daily, weekly, monthly, quarterly")
 
 class ProductAnalyticsRequest(BaseModel):
     product_id: str = Field(..., description="Product ID, e.g. P001")
@@ -34,6 +35,7 @@ class KPISummaryResponse(BaseModel):
     conversion_rate: KPIMetricMean
     retention_rate: KPIMetricMean
     marketing_spend: KPIMetricSumAvg
+    average_order_value: float = Field(default=0.0, description="Average Order Value for the period")
     days_in_period: int
 
 # Trend Schemas
@@ -43,6 +45,7 @@ class TrendPoint(BaseModel):
 
 class TrendResponse(BaseModel):
     metric: str
+    granularity: str = Field(default="daily", description="Granularity of the trend: daily, weekly, monthly, quarterly")
     direction: str
     slope: float
     r_squared: float

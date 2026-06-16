@@ -30,9 +30,10 @@ class AnalyticsEngine:
         metric: str = "revenue",
         start_date: Optional[str] = None,
         end_date: Optional[str] = None,
-        product_id: Optional[str] = None
+        product_id: Optional[str] = None,
+        granularity: str = "daily"
     ) -> Dict[str, Any]:
-        return analyze_trends(self.df, metric=metric, start_date=start_date, end_date=end_date, product_id=product_id)
+        return analyze_trends(self.df, metric=metric, start_date=start_date, end_date=end_date, product_id=product_id, granularity=granularity)
 
     def get_benchmarks(
         self,

@@ -62,6 +62,8 @@ class LLMPlannerAgent:
         system_prompt = (
             "You are a routing and extraction agent for a Business Intelligence microservice.\n"
             "Analyze the user's query and output a JSON object indicating the most relevant API action to perform.\n\n"
+            "CRITICAL PRIORITY RULE:\n"
+            "- If the query asks for a strategic recommendation, a business decision, a what-if planning scenario (e.g., queries starting with 'Should we...', 'What happens if...', 'What will happen to... if...'), a diagnostic of a drop/change, or any actionable recommendation advice, you MUST route it to 'decision_ask'. Do NOT route to 'sensitivity_estimate' or 'scenario_evaluate' if the user is asking a decision question like 'Should we...'.\n\n"
             "AVAILABLE ACTIONS & RULES:\n"
             "1. 'forecast_predict': For queries asking about predicting/forecasting future metrics (e.g. revenue, profit, conversion, orders).\n"
             "   Params: 'product_id' (str, default: 'P001'), 'horizon_days' (int, default: 30), 'target_metric' (str, e.g. 'revenue', 'profit', 'orders').\n"
@@ -70,7 +72,7 @@ class LLMPlannerAgent:
             "3. 'scenario_evaluate': For queries asking 'what-if' or scenario changes (e.g., 'if I decrease discount by 5 and increase shipping...').\n"
             "   Params: 'product_id' (str, default: 'P001'), 'horizon_days' (int, default: 30), 'changes' (list of str, e.g. ['discount -5%', 'shipping +20']).\n"
             "4. 'optimization_maximize': For queries asking how to maximize, optimize, or find best parameter configurations.\n"
-            "   Params: 'target_metric' (str, default: 'revenue'), 'product_id' (str, default: 'P001'), 'horizon_days' (int, default: 30).\n"
+            "   Params: 'target_metric' (str, default: 'revenue'), 'product_id' (str, default: 'P001'), 'horizon_days' (int, default: 30), 'max_discount_pct' (float, default: 0.30), 'max_marketing_budget' (float, default: 250.0).\n"
             "5. 'analysis_compare': For queries comparing metrics between two date periods.\n"
             "   Params: 'product_id' (str or null), 'period1_start' (str, YYYY-MM-DD), 'period1_end' (str, YYYY-MM-DD), 'period2_start' (str, YYYY-MM-DD), 'period2_end' (str, YYYY-MM-DD).\n"
             "6. 'analysis_declining': For queries asking to identify declining products or trends over a period.\n"
@@ -96,7 +98,13 @@ class LLMPlannerAgent:
             "16. 'analytics_pricing': Performance by discount buckets and price elasticity estimate.\n"
             "   Params: 'product_id' (str or null), 'category' (str or null), 'start_date' (str or null), 'end_date' (str or null).\n"
             "17. 'sensitivity_estimate': Sensitivity of revenue to marketing, discount, shipping, price, inventory, return/retention.\n"
-            "   Params: 'product_id' (str, default: 'P001'), 'horizon_days' (int, default: 30).\n\n"
+            "   Params: 'product_id' (str, default: 'P001'), 'horizon_days' (int, default: 30).\n"
+            "18. 'repository_search': Semantic search for historical reports, A/B tests, funnel or pricing experiments.\n"
+            "   Params: 'query' (str, the search query keywords/text).\n"
+            "19. 'repository_extract': Extract topic-based insights, successful strategies and learnings from previous experiments.\n"
+            "   Params: 'query' (str, e.g. 'checkout'), 'category' (str, topic name, e.g. 'checkout', 'pricing', 'discount').\n"
+            "20. 'decision_ask': For strategic decisions, what-if questions, planning recommendations, diagnostics, or explaining performance drops.\n"
+            "   Params: 'query' (str, the raw user query), 'product_id' (str, default: 'P001'), 'session_id' (str or null).\n\n"
             "OUTPUT FORMAT:\n"
             "You MUST reply with ONLY a JSON code block or raw JSON object containing two fields:\n"
             "{\n"
@@ -203,11 +211,22 @@ class LLMPlannerAgent:
                 prod_id = params.get("product_id", "P001")
                 metric = params.get("target_metric", "revenue")
                 horizon = params.get("horizon_days", 30)
+                
+                max_discount = params.get("max_discount_pct")
+                max_marketing = params.get("max_marketing_budget")
+                
+                kwargs = {}
+                if max_discount is not None:
+                    kwargs["max_discount_pct"] = float(max_discount)
+                if max_marketing is not None:
+                    kwargs["max_marketing_budget"] = float(max_marketing)
+                    
                 return self.optimizer.optimize_parameters(
                     historical_df=self.df_historical,
                     product_id=prod_id,
                     horizon_days=horizon,
-                    target_metric=metric
+                    target_metric=metric,
+                    **kwargs
                 )
                 
             # 5. Analysis
@@ -317,6 +336,77 @@ class LLMPlannerAgent:
                     product_id=prod_id,
                     horizon_days=horizon
                 )
+            elif route == "repository_search":
+                query_str = params.get("query") or "pricing experiments"
+                from src.core.history.storage.database import SessionLocal
+                from src.core.history.manager import HistoryManager
+                db = SessionLocal()
+                try:
+                    from src.api.dependencies import AppState
+                    encoder = getattr(AppState, "history_encoder", None)
+                    mgr = HistoryManager(db, encoder=encoder)
+                    results = mgr.semantic_search(query_str, limit=5)
+                    ser_results = []
+                    for res in results:
+                        ser_results.append({
+                            "score": res["score"],
+                            "experiment_id": res["experiment"].experiment_id,
+                            "type": res["experiment"].type,
+                            "change_summary": res["experiment"].change_summary,
+                            "outcome": res["experiment"].outcome,
+                            "structured_report": res["report"].structured_json
+                        })
+                    return {
+                        "query": query_str,
+                        "results_found": len(ser_results),
+                        "items": ser_results
+                    }
+                finally:
+                    db.close()
+            elif route == "repository_extract":
+                topic = params.get("category") or params.get("query") or "pricing"
+                from src.core.history.storage.database import SessionLocal
+                from src.core.history.manager import HistoryManager
+                db = SessionLocal()
+                try:
+                    from src.api.dependencies import AppState
+                    encoder = getattr(AppState, "history_encoder", None)
+                    mgr = HistoryManager(db, encoder=encoder)
+                    insights = mgr.extract_topic_insights(topic)
+                    return insights
+                finally:
+                    db.close()
+            elif route == "decision_ask":
+                # Call DecisionManager dynamically
+                from src.core.history.storage.database import SessionLocal
+                from src.core.decision.manager import DecisionManager
+                from src.core.history.manager import HistoryManager
+                from src.api.dependencies import AppState
+                
+                db = SessionLocal()
+                try:
+                    history_encoder = getattr(AppState, "history_encoder", None)
+                    history_mgr = HistoryManager(db, encoder=history_encoder)
+                    
+                    manager = DecisionManager(
+                        db=db,
+                        df_historical=self.df_historical,
+                        forecaster=self.forecaster,
+                        sensitivity_engine=self.sensitivity_engine,
+                        simulator=self.simulator,
+                        history_manager=history_mgr
+                    )
+                    
+                    query_str = params.get("query") or params.get("q")
+                    # Run the full decision flow
+                    result = manager.process_decision_flow(
+                        query=query_str,
+                        product_id=params.get("product_id", "P001"),
+                        session_id=params.get("session_id")
+                    )
+                    return result
+                finally:
+                    db.close()
             else:
                 raise ValueError(f"Unknown routed action: {route}")
         except Exception as e:
@@ -327,6 +417,9 @@ class LLMPlannerAgent:
         """
         Asks Llama 3.1 to generate a polished natural language report translating the JSON output into insights.
         """
+        if route == "decision_ask" and "explanation" in raw_data:
+            return raw_data["explanation"]
+
         if not self.client:
             return (
                 f"Deterministically executed route '{route}'. Here is the computed data:\n"
@@ -376,6 +469,10 @@ class LLMPlannerAgent:
         route = routing_info.get("route", "forecast_predict")
         params = routing_info.get("params", {})
         
+        # Ensure query is in params so executing components can access the raw text
+        if "query" not in params:
+            params["query"] = query
+        
         raw_data = self.execute_route(route, params)
         natural_language_answer = self.synthesize_answer(query, route, raw_data)
         
@@ -392,6 +489,10 @@ class LLMPlannerAgent:
         """
         q = query.lower()
         
+        # 0. Decision Intelligence / AI Scientist Strategic Queries
+        if any(k in q for k in ["should we", "what if", "what-if", "what will happen", "explain the recent", "performance drop", "decline"]):
+            return {"route": "decision_ask", "params": {"query": query, "product_id": "P001"}}
+            
         # 1. Sensitivity
         if "sensitivity" in q or "sensitive" in q or "elasticity" in q:
             return {"route": "sensitivity_estimate", "params": {"product_id": "P001", "horizon_days": 30}}
@@ -412,7 +513,19 @@ class LLMPlannerAgent:
             target = "revenue"
             if "profit" in q:
                 target = "profit"
-            return {"route": "optimization_maximize", "params": {"target_metric": target, "product_id": "P001", "horizon_days": 30}}
+            params = {"target_metric": target, "product_id": "P001", "horizon_days": 30}
+            
+            # Extract product id if P\d+ is in query
+            prod_match = re.search(r"p\d+", q)
+            if prod_match:
+                params["product_id"] = prod_match.group(0).upper()
+                
+            # Extract budget if present
+            budget_match = re.search(r"budget\s*(?:of|is|limit|cap)?\s*\$?\s*(\d+)", q)
+            if budget_match:
+                params["max_marketing_budget"] = float(budget_match.group(1))
+                
+            return {"route": "optimization_maximize", "params": params}
             
         # 4. Compare
         elif "compare" in q or "period-over-period" in q or "pop" in q:
@@ -441,6 +554,21 @@ class LLMPlannerAgent:
                 return {"route": "analysis_declining", "params": {"lookback_days": 30, "metric": "revenue"}}
             return {"route": "analytics_trend", "params": {"metric": "revenue", "product_id": "P001"}}
             
-        # 8. Forecast / Default
+        # 8. History Repository / Experiments
+        elif any(k in q for k in ["report", "experiment", "ab test", "learnings", "past", "historical", "tried", "conversion improvements"]):
+            if any(k in q for k in ["learning", "summarize", "pattern", "insights", "strategy"]):
+                # Extract topic category
+                category = "pricing"
+                if "checkout" in q or "conversion" in q:
+                    category = "checkout"
+                elif "discount" in q:
+                    category = "discount"
+                elif "shipping" in q:
+                    category = "shipping"
+                return {"route": "repository_extract", "params": {"query": q, "category": category}}
+            else:
+                return {"route": "repository_search", "params": {"query": query}}
+                
+        # 9. Forecast / Default
         else:
             return {"route": "forecast_predict", "params": {"product_id": "P001", "horizon_days": 30}}

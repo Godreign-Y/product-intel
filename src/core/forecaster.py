@@ -97,7 +97,7 @@ class ProductForecaster:
                     
                 if key_lower in last_history.columns:
                     last_history.at[last_history.index[-1], key_lower] = val
-                    logger.info(f"Overwrote current feature {key_lower} with {val} at last historical day (t=0)")
+                    logger.debug(f"Overwrote current feature {key_lower} with {val} at last historical day (t=0)")
         
         last_date = last_history["date"].iloc[-1]
         

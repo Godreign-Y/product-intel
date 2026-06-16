@@ -11,7 +11,8 @@ base_url = "http://127.0.0.1:8000/api/v1/agent/query"
 
 queries = [
     # "what will be my revenue next month?",
-    "if i decrease my discount by 5 for my minimalist shampoo (p002) and increase shipping fee, what would happen?",
+    # "what will bemy revenue for next week for minimalist shampoo p002?"
+    "what should i do to increase revenue for minimalist shampoo p002?"
     # "what should be done to maximize the revenue?"
 ]
 

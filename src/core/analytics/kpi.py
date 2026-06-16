@@ -42,6 +42,8 @@ def analyze_kpis(
     traffic_sum = float(df_filtered["traffic"].sum())
     marketing_sum = float(df_filtered["marketing_spend"].sum())
     
+    average_order_value = float(revenue_sum / orders_sum) if orders_sum > 0 else 0.0
+    
     return {
         "revenue": {
             "sum": round(revenue_sum, 2),
@@ -70,5 +72,6 @@ def analyze_kpis(
             "sum": round(marketing_sum, 2),
             "daily_avg": round(marketing_sum / days, 2)
         },
+        "average_order_value": round(average_order_value, 2),
         "days_in_period": days
     }

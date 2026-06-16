@@ -23,6 +23,8 @@ class AppState:
     analytics_engine: Optional[Any] = None
     sensitivity_engine: Optional[Any] = None
     planner_agent: Optional[Any] = None
+    anomaly_engine: Optional[Any] = None
+    history_encoder: Optional[Any] = None
 
 def load_app_state(models_dir: str = "models", preprocessor_path: str = "models/preprocessor.joblib", csv_path: str = "temporal_dataset.csv"):
     if AppState.df_historical is None:
@@ -75,6 +77,20 @@ def load_app_state(models_dir: str = "models", preprocessor_path: str = "models/
             df_historical=AppState.df_historical
         )
 
+    if AppState.anomaly_engine is None:
+        logger.info("Initializing Anomaly Detection Engine...")
+        from src.core.anomaly.engine import AnomalyDetectionEngine
+        AppState.anomaly_engine = AnomalyDetectionEngine(
+            forecaster=AppState.forecaster,
+            explainer=AppState.explainer,
+            df_historical=AppState.df_historical
+        )
+
+    if AppState.history_encoder is None:
+        logger.info("Initializing History Encoder...")
+        from src.core.history.embeddings.encoder import SentenceTransformerEncoder
+        AppState.history_encoder = SentenceTransformerEncoder()
+
 def get_historical_data() -> pd.DataFrame:
     if AppState.df_historical is None:
         load_app_state()
@@ -119,3 +135,8 @@ def get_planner_agent():
     if AppState.planner_agent is None:
         load_app_state()
     return AppState.planner_agent
+
+def get_anomaly_engine():
+    if AppState.anomaly_engine is None:
+        load_app_state()
+    return AppState.anomaly_engine

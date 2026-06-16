@@ -8,10 +8,11 @@ def analyze_trends(
     metric: str = "revenue",
     start_date: Optional[str] = None,
     end_date: Optional[str] = None,
-    product_id: Optional[str] = None
+    product_id: Optional[str] = None,
+    granularity: str = "daily"
 ) -> Dict[str, Any]:
     """
-    Analyzes trajectories and performs regression over time for a target metric.
+    Analyzes trajectories and performs regression over time for a target metric with custom granularity.
     """
     df_filtered = df.copy()
     df_filtered["date"] = pd.to_datetime(df_filtered["date"])
@@ -27,7 +28,24 @@ def analyze_trends(
     if metric_lower not in df_filtered.columns:
         metric_lower = "revenue"
         
-    df_grouped = df_filtered.groupby("date")[metric_lower].sum().reset_index()
+    # Apply time granularity grouping
+    gran_lower = granularity.lower() if granularity else "daily"
+    if gran_lower == "weekly":
+        df_filtered["date"] = df_filtered["date"].dt.to_period('W').dt.start_time
+    elif gran_lower == "monthly":
+        df_filtered["date"] = df_filtered["date"].dt.to_period('M').dt.start_time
+    elif gran_lower == "quarterly":
+        df_filtered["date"] = df_filtered["date"].dt.to_period('Q').dt.start_time
+        
+    # Determine aggregation function
+    mean_metrics = [
+        "conversion_rate", "retention_rate", "avg_selling_price", 
+        "discount_pct", "shipping_fee", "current_ctr", "current_roas", 
+        "avg_ltv", "price_index"
+    ]
+    agg_func = "mean" if metric_lower in mean_metrics else "sum"
+    
+    df_grouped = df_filtered.groupby("date")[metric_lower].agg(agg_func).reset_index()
     df_grouped = df_grouped.sort_values(by="date")
     
     if len(df_grouped) < 2:
@@ -64,6 +82,7 @@ def analyze_trends(
     
     return {
         "metric": metric_lower,
+        "granularity": gran_lower,
         "direction": direction,
         "slope": round(float(slope), 4),
         "r_squared": round(float(r_value ** 2), 4),
