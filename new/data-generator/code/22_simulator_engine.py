@@ -40,8 +40,8 @@ def main():
     trajectory_engine = TrajectorySimulator(transition_engine)
     baseline_engine = BaselineTrajectoryGenerator(transition_engine)
     
-    writer = CsvStreamWriter("output", "trajectories_v6.csv")
-    report = ReportGenerator("simulation_report_v6.json")
+    writer = CsvStreamWriter("output", "trajectories_v8.csv")
+    report = ReportGenerator("simulation_report_v8.json")
     
     # 3. Load Inputs
     try:

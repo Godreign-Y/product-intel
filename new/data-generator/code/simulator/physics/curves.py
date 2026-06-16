@@ -40,6 +40,12 @@ class CurveEngine:
             peak = profile.get("peak_days", 1)
             decay = profile.get("decay_days", 1)
 
+        # Step profile maintains 100% strength for the entire duration
+        if profile_name == "step":
+            if elapsed_days >= lag:
+                return 1.0
+            return 0.0
+
         # Before lag completes, no effect
         if elapsed_days < lag:
             return 0.0

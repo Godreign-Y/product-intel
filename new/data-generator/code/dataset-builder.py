@@ -5,7 +5,7 @@ import numpy as np
 import pandas as pd
 
 
-TRAJECTORY_FILE = "final-output/trajectories_v6.csv"
+TRAJECTORY_FILE = "final-output/trajectories_v8.csv"
 SCHEDULE_FILE = "action_schedules.json"
 
 OUTPUT_FILE = "final-output/training_dataset.csv"

@@ -103,7 +103,10 @@ class StateTransitionEngine:
                 val = getattr(state, feature)
                 if feature in ["discount_pct", "shipping_fee"] or val == 0:
                     # Fallback to absolute point addition if relative pct doesn't make sense or val is 0
-                    setattr(state, feature, max(0.0, float(val + delta)))
+                    if feature == "shipping_fee":
+                        setattr(state, feature, max(1.99, float(val + delta)))
+                    else:
+                        setattr(state, feature, max(0.0, float(val + delta)))
                 else:
                     if isinstance(val, int):
                         setattr(state, feature, int(val * (1 + delta/100)))
@@ -132,7 +135,12 @@ class StateTransitionEngine:
                     self._apply_effect(day_state, feature, op, delta, action)
             else:
                 # Temporary effects applied only to day_state
-                profile = "immediate"
+                # discount and marketing are budget/state switches, they shouldn't decay over 3 days
+                if feature in ["discount_pct", "marketing_spend"]:
+                    profile = "step"
+                else:
+                    profile = "immediate"
+                
                 multiplier = self.curve_engine.compute_multiplier(profile, day - action.get("relative_day", day))
                 self._apply_effect(day_state, feature, op, delta * multiplier, action)
                 

@@ -19,6 +19,7 @@ ARCHETYPES = {
         "traffic_range": (2000, 10000),
         "conversion_range": (0.02, 0.06),
         "retention_range": (0.20, 0.40),
+        "shipping_fee_options": [4.99, 5.99, 6.99],
 
         "price_sensitivity": 1.5,
         "discount_sensitivity": 1.5,
@@ -40,6 +41,7 @@ ARCHETYPES = {
         "traffic_range": (500, 5000),
         "conversion_range": (0.01, 0.04),
         "retention_range": (0.30, 0.60),
+        "shipping_fee_options": [9.99, 14.99, 19.99],
 
         "price_sensitivity": 0.6,
         "discount_sensitivity": 0.8,
@@ -61,6 +63,7 @@ ARCHETYPES = {
         "traffic_range": (5000, 50000),
         "conversion_range": (0.03, 0.12),
         "retention_range": (0.10, 0.30),
+        "shipping_fee_options": [2.99, 3.99, 4.99],
 
         "price_sensitivity": 1.2,
         "discount_sensitivity": 1.8,
@@ -82,6 +85,7 @@ ARCHETYPES = {
         "traffic_range": (1000, 10000),
         "conversion_range": (0.01, 0.03),
         "retention_range": (0.20, 0.50),
+        "shipping_fee_options": [9.99, 14.99, 19.99],
 
         "price_sensitivity": 1.0,
         "discount_sensitivity": 0.8,
@@ -103,6 +107,7 @@ ARCHETYPES = {
         "traffic_range": (500, 5000),
         "conversion_range": (0.005, 0.02),
         "retention_range": (0.05, 0.20),
+        "shipping_fee_options": [19.99, 29.99, 49.99],
 
         "price_sensitivity": 1.2,
         "discount_sensitivity": 1.4,
@@ -124,6 +129,7 @@ ARCHETYPES = {
         "traffic_range": (3000, 30000),
         "conversion_range": (0.04, 0.10),
         "retention_range": (0.40, 0.80),
+        "shipping_fee_options": [4.99, 7.99, 9.99],
 
         "price_sensitivity": 1.8,
         "discount_sensitivity": 1.6,
@@ -145,6 +151,7 @@ ARCHETYPES = {
         "traffic_range": (1000, 10000),
         "conversion_range": (0.02, 0.05),
         "retention_range": (0.60, 0.95),
+        "shipping_fee_options": [2.99, 4.99, 5.99],
 
         "price_sensitivity": 0.9,
         "discount_sensitivity": 0.5,
@@ -166,6 +173,7 @@ ARCHETYPES = {
         "traffic_range": (1000, 50000),
         "conversion_range": (0.01, 0.08),
         "retention_range": (0.05, 0.20),
+        "shipping_fee_options": [4.99, 9.99, 12.99],
 
         "price_sensitivity": 0.7,
         "discount_sensitivity": 1.0,
@@ -187,6 +195,7 @@ ARCHETYPES = {
         "traffic_range": (100, 2000),
         "conversion_range": (0.005, 0.02),
         "retention_range": (0.20, 0.60),
+        "shipping_fee_options": [29.99, 49.99, 99.99],
 
         "price_sensitivity": 0.4,
         "discount_sensitivity": 0.4,
@@ -208,6 +217,7 @@ ARCHETYPES = {
         "traffic_range": (1000, 15000),
         "conversion_range": (0.01, 0.05),
         "retention_range": (0.20, 0.50),
+        "shipping_fee_options": [9.99, 14.99],
 
         "price_sensitivity": 1.0,
         "discount_sensitivity": 1.0,
@@ -274,8 +284,8 @@ def generate_product(product_id, archetype_name, cfg):
             "inventory_available": inventory,
 
             "avg_selling_price": price,
-            "discount_pct": 0,
-            "shipping_fee": 0,
+            "discount_pct": random.choice([0.0, 0.0, 5.0, 10.0, 15.0, 20.0]),
+            "shipping_fee": random.choice(cfg.get("shipping_fee_options", [4.99])),
 
             "marketing_spend": round(revenue * 0.10, 2),
 
