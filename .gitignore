@@ -20,8 +20,8 @@ data/test_historical_repository.db
 data/historical_repository.db
 temporal_dataset.csv
 
-# Pre-trained ML Models
-models/
+# # Pre-trained ML Models
+# models/
 
 # System and editor files
 .vscode/
