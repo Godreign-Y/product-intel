@@ -28,12 +28,27 @@ class HistoryManager:
 
     def rebuild_tables(self):
         """
-        Cleans and recreates the database tables.
+        Cleans and recreates the historical intelligence repository tables
+        without dropping the raw product_performance dataset.
         """
-        logger.info("Dropping all historical repository tables...")
-        Base.metadata.drop_all(bind=engine)
-        logger.info("Creating all historical repository tables...")
-        Base.metadata.create_all(bind=engine)
+        from src.core.history.storage.models import Snapshot, Event, Experiment, Report, ReportEmbedding, KnowledgeBase
+        
+        logger.info("Dropping historical repository tables selectively...")
+        tables = [
+            ReportEmbedding.__table__,
+            Report.__table__,
+            Experiment.__table__,
+            Event.__table__,
+            Snapshot.__table__,
+            KnowledgeBase.__table__
+        ]
+        for table in tables:
+            table.drop(bind=engine, checkfirst=True)
+            
+        logger.info("Creating historical repository tables selectively...")
+        for table in reversed(tables):
+            table.create(bind=engine, checkfirst=True)
+            
         logger.info("Database tables initialized successfully.")
 
     def run_build_pipeline(self, df_hist: pd.DataFrame, force_rebuild: bool = True) -> Dict[str, Any]:

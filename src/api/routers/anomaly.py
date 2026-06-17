@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from typing import List, Dict, Any
 
 from src.api.schemas.anomaly import (
@@ -179,6 +179,30 @@ async def get_top_products_endpoint(
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Global ranking ranking error: {str(e)}")
+
+@router.get("/top-products", response_model=GlobalRankingResponse)
+async def get_top_products_get_endpoint(
+    target_date: str = Query(..., description="Target date for global anomaly ranking"),
+    kpi: str = Query("revenue", description="KPI metric"),
+    engine: AnomalyDetectionEngine = Depends(get_anomaly_engine)
+):
+    try:
+        res = engine.get_top_products(
+            date=target_date,
+            kpi=kpi
+        )
+        return GlobalRankingResponse(
+            target_date=target_date,
+            kpi=kpi,
+            top_10_critical_products=res["top_10_critical_products"],
+            top_revenue_risk=res["top_revenue_risk"],
+            top_profit_risk=res["top_profit_risk"],
+            most_unusual_products=res["most_unusual_products"],
+            products_recovering=res["products_recovering"],
+            products_improving=res["products_improving"]
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Global ranking error: {str(e)}")
 
 @router.post("/explain")
 async def get_anomaly_explain_endpoint(

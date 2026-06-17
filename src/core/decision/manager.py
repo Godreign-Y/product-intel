@@ -25,11 +25,26 @@ class DecisionManager:
         forecaster: ProductForecaster,
         sensitivity_engine: SensitivityEngine,
         simulator: ScenarioSimulator,
-        history_manager: Optional[Any] = None
+        history_manager: Optional[Any] = None,
+        explainer: Optional[Any] = None
     ):
         self.db = db
+        
+        # Fallback to AppState if explainer is not provided directly
+        if explainer is None:
+            try:
+                from src.api.dependencies import AppState
+                explainer = AppState.explainer
+            except ImportError:
+                pass
+                
         self.context_engine = ContextEngine(db)
-        self.hypo_generator = HypothesisGenerator()
+        self.hypo_generator = HypothesisGenerator(
+            db=db,
+            forecaster=forecaster,
+            explainer=explainer,
+            history_manager=history_manager
+        )
         self.evidence_retriever = EvidenceRetriever(db, history_manager)
         self.validator = ValidationEngine(df_historical, forecaster, sensitivity_engine, simulator)
         self.scorer = ConfidenceScorer()

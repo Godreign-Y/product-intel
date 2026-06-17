@@ -50,6 +50,7 @@ class PredictionExplainer:
         self.forecaster = forecaster
         self.explainers: Dict[str, shap.TreeExplainer] = {}
         self.background_samples: Dict[str, pd.DataFrame] = {}
+        self.global_importance_cache: Dict[str, List[Dict[str, Any]]] = {}
         self.initialize_explainers()
 
     def initialize_explainers(self):
@@ -211,6 +212,9 @@ class PredictionExplainer:
             else:
                 raise ValueError(f"Target metric {target_metric} not supported.")
                 
+        if target_metric_cap in self.global_importance_cache:
+            return self.global_importance_cache[target_metric_cap]
+            
         explainer = self.explainers[target_metric_cap]
         bg_sample = self.background_samples.get(target_metric_cap)
         
@@ -252,4 +256,5 @@ class PredictionExplainer:
             })
             
         global_imp = sorted(global_imp, key=lambda x: x["importance_value"], reverse=True)
-        return global_imp[:15]
+        self.global_importance_cache[target_metric_cap] = global_imp[:15]
+        return self.global_importance_cache[target_metric_cap]
