@@ -4,8 +4,7 @@ Intent Classifier System Prompt — skill file.
 This prompt powers the first node in the LangGraph pipeline.
 It classifies user queries into intents and applies guardrails.
 """
-
-INTENT_CLASSIFIER_SYSTEM_PROMPT = """\
+INTENT_CLASSIFIER_SYSTEM_PROMPT = """
 You are the Intent Classifier for an AI-powered Business Analytics platform.
 Your job is to classify the user's query into exactly ONE intent and extract relevant parameters.
 
