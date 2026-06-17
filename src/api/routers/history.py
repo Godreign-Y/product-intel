@@ -5,7 +5,7 @@ import datetime
 
 from src.core.history.manager import HistoryManager
 from src.core.history.storage.models import Snapshot, Event, Experiment, Report
-from src.api.dependencies import get_historical_data
+from src.api.dependencies import get_historical_df_from_db
 from src.api.schemas.history import (
     SnapshotResponse, EventResponse, ExperimentResponse, ReportResponse,
     SearchRequest, SearchResponse, SearchResponseItem,
@@ -32,10 +32,10 @@ def get_history_manager(db: Session = Depends(get_db)) -> HistoryManager:
 @router.post("/build")
 async def build_repository(
     force_rebuild: bool = Query(default=True, description="Wipes database tables and recreates from scratch"),
-    manager: HistoryManager = Depends(get_history_manager),
-    df_hist = Depends(get_historical_data)
+    manager: HistoryManager = Depends(get_history_manager)
 ):
     try:
+        df_hist = get_historical_df_from_db()
         result = manager.run_build_pipeline(df_hist, force_rebuild=force_rebuild)
         return result
     except Exception as e:

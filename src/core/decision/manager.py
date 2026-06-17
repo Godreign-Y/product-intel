@@ -66,6 +66,10 @@ class DecisionManager:
         historical_evidences = {}
         
         for cand in candidates:
+            # Ensure hypothesis_id is globally unique to satisfy DB constraint
+            unique_id = f"HYP_{db_context.id}_{cand['hypothesis_id']}"
+            cand["hypothesis_id"] = unique_id
+            
             # Query similar previous experiments
             evidence = self.evidence_retriever.retrieve_historical_evidence(cand["title"], cand["affected_kpis"])
             historical_evidences[cand["hypothesis_id"]] = evidence

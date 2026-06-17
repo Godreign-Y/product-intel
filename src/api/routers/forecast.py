@@ -3,7 +3,7 @@ import numpy as np
 from typing import List
 
 from src.api.schemas.forecast import ForecastRequest, ForecastResponse, DailyForecastPoint, ForecastAllRequest, ForecastAllResponse
-from src.api.dependencies import get_forecaster, get_historical_data
+from src.api.dependencies import get_forecaster, get_historical_df_from_db
 from src.core.forecaster import ProductForecaster
 
 router = APIRouter(prefix="/forecast", tags=["Forecasting"])
@@ -11,10 +11,10 @@ router = APIRouter(prefix="/forecast", tags=["Forecasting"])
 @router.post("/predict", response_model=ForecastResponse)
 async def predict_forecast(
     payload: ForecastRequest,
-    forecaster: ProductForecaster = Depends(get_forecaster),
-    df_hist = Depends(get_historical_data)
+    forecaster: ProductForecaster = Depends(get_forecaster)
 ):
     try:
+        df_hist = get_historical_df_from_db(product_id=payload.product_id)
         # Run recursive multi-step forecasting with optional current_features warm-start
         forecast_df = forecaster.forecast(
             historical_df=df_hist,
@@ -66,10 +66,10 @@ async def predict_forecast(
 @router.post("/predict_all", response_model=ForecastAllResponse)
 async def predict_all_forecasts(
     payload: ForecastAllRequest,
-    forecaster: ProductForecaster = Depends(get_forecaster),
-    df_hist = Depends(get_historical_data)
+    forecaster: ProductForecaster = Depends(get_forecaster)
 ):
     try:
+        df_hist = get_historical_df_from_db(product_id=payload.product_id)
         # Run recursive multi-step forecasting for all metrics
         forecast_df = forecaster.forecast(
             historical_df=df_hist,

@@ -11,7 +11,7 @@ from src.core.simulator import ScenarioSimulator
 class ValidationEngine:
     def __init__(
         self, 
-        df_historical: pd.DataFrame,
+        df_historical: Optional[pd.DataFrame],
         forecaster: ProductForecaster,
         sensitivity_engine: SensitivityEngine,
         simulator: ScenarioSimulator
@@ -35,16 +35,20 @@ class ValidationEngine:
         # Pearson
         try:
             p_coef, p_val = stats.pearsonr(x, y)
-            if np.isnan(p_coef): p_coef = 0.0
+            import pandas as pd
+            if np.isnan(p_coef) or pd.isna(p_coef): p_coef = 0.0
+            if np.isnan(p_val) or pd.isna(p_val): p_val = 1.0
         except Exception:
             p_coef, p_val = 0.0, 1.0
             
         # Spearman
         try:
             s_coef, s_val = stats.spearmanr(x, y)
-            if np.isnan(s_coef): s_coef = 0.0
+            import pandas as pd
+            if np.isnan(s_coef) or pd.isna(s_coef): s_coef = 0.0
+            if np.isnan(s_val) or pd.isna(s_val): s_val = 1.0
         except Exception:
-            s_coef = 0.0
+            s_coef, s_val = 0.0, 1.0
             
         return {
             "pearson": round(float(p_coef), 4),
@@ -178,46 +182,53 @@ class ValidationEngine:
         """
         Runs the full validation suite against a candidate hypothesis.
         """
-        hyp_id = hypothesis.get("hypothesis_id", "")
-        affected_kpis = hypothesis.get("affected_kpis", ["total_revenue"])
-        kpi = affected_kpis[0] if affected_kpis else "revenue"
-        
-        # Map internal Column Names
-        kpi_col = "revenue" if "revenue" in kpi else "profit" if "profit" in kpi else "orders" if "orders" in kpi else "conversion_rate" if "conversion" in kpi else "revenue"
-        
-        # Map driver column based on hypothesis ID or keywords
-        driver_col = "discount_pct"
-        driver_key = "discount"
-        if "shi" in hyp_id.lower() or "shipping" in hypothesis.get("title", "").lower():
-            driver_col = "shipping_fee"
-            driver_key = "shipping"
-        elif "pri" in hyp_id.lower() or "price" in hypothesis.get("title", "").lower() or "pricing" in hypothesis.get("title", "").lower():
-            driver_col = "avg_selling_price"
-            driver_key = "price"
-        elif "spend" in hypothesis.get("title", "").lower() or "marketing" in hypothesis.get("title", "").lower():
-            driver_col = "marketing_spend"
-            driver_key = "marketing"
+        original_df = self.df
+        if self.df is None:
+            from src.api.dependencies import get_historical_df_from_db
+            self.df = get_historical_df_from_db(product_id=product_id)
+        try:
+            hyp_id = hypothesis.get("hypothesis_id", "")
+            affected_kpis = hypothesis.get("affected_kpis", ["total_revenue"])
+            kpi = affected_kpis[0] if affected_kpis else "revenue"
             
-        # 1. Run Correlation
-        correlation = self.run_correlation(kpi_col, driver_col, product_id)
-        
-        # 2. Run Sensitivity
-        sensitivity = self.run_sensitivity_lookup(driver_key, product_id)
-        
-        # 3. Run Forecast counterfactual (Simulate +10% or -10% change depending on type)
-        # If it's a shipping fee cut or price drop, simulation should check negative change
-        is_negative_change = "cut" in hypothesis.get("title", "").lower() or "reduce" in hypothesis.get("title", "").lower() or "drop" in hypothesis.get("title", "").lower() or "lower" in hypothesis.get("title", "").lower()
-        change_pct = -10.0 if is_negative_change else 10.0
-        
-        forecast_sim = self.run_forecast_simulation(kpi_col, driver_col, change_pct, product_id)
-        
-        # 4. Run Causal Analysis
-        causal = self.run_causal_effect(kpi_col, driver_col, product_id)
-        
-        return {
-            "correlation": correlation,
-            "sensitivity": sensitivity,
-            "forecast_simulation": forecast_sim,
-            "causal": causal,
-            "validated_at": datetime.datetime.utcnow().isoformat()
-        }
+            # Map internal Column Names
+            kpi_col = "revenue" if "revenue" in kpi else "profit" if "profit" in kpi else "orders" if "orders" in kpi else "conversion_rate" if "conversion" in kpi else "revenue"
+            
+            # Map driver column based on hypothesis ID or keywords
+            driver_col = "discount_pct"
+            driver_key = "discount"
+            if "shi" in hyp_id.lower() or "shipping" in hypothesis.get("title", "").lower():
+                driver_col = "shipping_fee"
+                driver_key = "shipping"
+            elif "pri" in hyp_id.lower() or "price" in hypothesis.get("title", "").lower() or "pricing" in hypothesis.get("title", "").lower():
+                driver_col = "avg_selling_price"
+                driver_key = "price"
+            elif "spend" in hypothesis.get("title", "").lower() or "marketing" in hypothesis.get("title", "").lower():
+                driver_col = "marketing_spend"
+                driver_key = "marketing"
+                
+            # 1. Run Correlation
+            correlation = self.run_correlation(kpi_col, driver_col, product_id)
+            
+            # 2. Run Sensitivity
+            sensitivity = self.run_sensitivity_lookup(driver_key, product_id)
+            
+            # 3. Run Forecast counterfactual (Simulate +10% or -10% change depending on type)
+            # If it's a shipping fee cut or price drop, simulation should check negative change
+            is_negative_change = "cut" in hypothesis.get("title", "").lower() or "reduce" in hypothesis.get("title", "").lower() or "drop" in hypothesis.get("title", "").lower() or "lower" in hypothesis.get("title", "").lower()
+            change_pct = -10.0 if is_negative_change else 10.0
+            
+            forecast_sim = self.run_forecast_simulation(kpi_col, driver_col, change_pct, product_id)
+            
+            # 4. Run Causal Analysis
+            causal = self.run_causal_effect(kpi_col, driver_col, product_id)
+            
+            return {
+                "correlation": correlation,
+                "sensitivity": sensitivity,
+                "forecast_simulation": forecast_sim,
+                "causal": causal,
+                "validated_at": datetime.datetime.utcnow().isoformat()
+            }
+        finally:
+            self.df = original_df

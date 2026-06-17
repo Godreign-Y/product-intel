@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException
 
 from src.api.schemas.optimization import OptimizationRequest, OptimizationResponse, OptimalParameters, BaselineParameters
-from src.api.dependencies import get_optimizer, get_historical_data
+from src.api.dependencies import get_optimizer, get_historical_df_from_db
 from src.core.optimizer import RevenueOptimizer
 
 router = APIRouter(prefix="/optimization", tags=["Optimization"])
@@ -9,10 +9,10 @@ router = APIRouter(prefix="/optimization", tags=["Optimization"])
 @router.post("/maximize", response_model=OptimizationResponse)
 async def maximize_metric(
     payload: OptimizationRequest,
-    optimizer: RevenueOptimizer = Depends(get_optimizer),
-    df_hist = Depends(get_historical_data)
+    optimizer: RevenueOptimizer = Depends(get_optimizer)
 ):
     try:
+        df_hist = get_historical_df_from_db(product_id=payload.product_id)
         result = optimizer.optimize_parameters(
             historical_df=df_hist,
             product_id=payload.product_id,

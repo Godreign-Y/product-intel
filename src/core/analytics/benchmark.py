@@ -10,13 +10,8 @@ def analyze_benchmarks(
     """
     Compares a product's performance to category and global benchmarks.
     """
-    df_filtered = df.copy()
-    df_filtered["date"] = pd.to_datetime(df_filtered["date"])
-    
-    if start_date:
-        df_filtered = df_filtered[df_filtered["date"] >= pd.to_datetime(start_date)]
-    if end_date:
-        df_filtered = df_filtered[df_filtered["date"] <= pd.to_datetime(end_date)]
+    from src.core.analytics.utils import filter_dataframe
+    df_filtered = filter_dataframe(df, start_date=start_date, end_date=end_date)
         
     prod_data = df_filtered[df_filtered["product_id"] == product_id]
     if len(prod_data) == 0:

@@ -24,7 +24,7 @@ class AnomalyDetectionEngine:
         self,
         forecaster: ProductForecaster,
         explainer: PredictionExplainer,
-        df_historical: pd.DataFrame
+        df_historical: Optional[pd.DataFrame] = None
     ):
         self.forecaster = forecaster
         self.explainer = explainer
@@ -67,8 +67,13 @@ class AnomalyDetectionEngine:
             
         target_ts = pd.to_datetime(target_date)
         
+        df_hist = self.df_historical
+        if df_hist is None:
+            from src.api.dependencies import get_historical_df_from_db
+            df_hist = get_historical_df_from_db(product_id=product_id)
+            
         # 1. Prepare historical split up to (target_date - 1 day) to run forecast prediction on target_date
-        prod_data = self.df_historical[self.df_historical["product_id"] == product_id].copy()
+        prod_data = df_hist[df_hist["product_id"] == product_id].copy()
         if len(prod_data) == 0:
             return {"error": f"Product ID {product_id} not found in historical dataset."}
             
@@ -89,7 +94,7 @@ class AnomalyDetectionEngine:
             
         # Run 1-step forecast for target day using prior day history
         forecast_df = self.forecaster.forecast(
-            historical_df=self.df_historical,
+            historical_df=df_hist,
             product_id=product_id,
             horizon_days=1,
             current_features={
@@ -127,7 +132,7 @@ class AnomalyDetectionEngine:
         
         # Layer 2: Rolling Trend
         trend_info = self.trend_detector.detect_trends(
-            df=self.df_historical,
+            df=df_hist,
             product_id=product_id,
             metric=kpi_lower
         )
@@ -137,7 +142,7 @@ class AnomalyDetectionEngine:
         
         # Layer 3: Change Point
         cp_info = self.cp_detector.detect_change_points(
-            df=self.df_historical,
+            df=df_hist,
             product_id=product_id,
             metric=kpi_lower
         )
@@ -146,7 +151,7 @@ class AnomalyDetectionEngine:
         
         # Layer 4: Multivariate Anomaly Detection
         mv_info = self.mv_detector.detect_multivariate(
-            df=self.df_historical,
+            df=df_hist,
             product_id=product_id,
             target_date=target_date
         )
@@ -154,14 +159,14 @@ class AnomalyDetectionEngine:
         
         # Layer 5: Business Rules
         rules_triggered = self.rule_engine.evaluate_rules(
-            df=self.df_historical,
+            df=df_hist,
             product_id=product_id,
             target_date=target_date
         )
         
         # Layer 6: Relationships
         relations_triggered = self.relation_monitor.monitor_relationships(
-            df=self.df_historical,
+            df=df_hist,
             product_id=product_id,
             target_date=target_date
         )
@@ -190,8 +195,8 @@ class AnomalyDetectionEngine:
         
         # Layer 10: Historical Context
         history_info = self.history_context.evaluate_historical_context(
-            df_actual=self.df_historical,
-            df_forecast=self.df_historical, # Evaluate on overall actuals for past accuracy
+            df_actual=df_hist,
+            df_forecast=df_hist, # Evaluate on overall actuals for past accuracy
             product_id=product_id,
             kpi=kpi_lower,
             current_date=target_date,
@@ -201,8 +206,8 @@ class AnomalyDetectionEngine:
         
         # Layer 11: Accuracy Monitoring
         accuracy_info = self.history_context.monitor_forecast_accuracy(
-            df_actual=self.df_historical,
-            df_forecast=self.df_historical,
+            df_actual=df_hist,
+            df_forecast=df_hist,
             product_id=product_id,
             kpi=kpi_lower
         )
@@ -210,7 +215,7 @@ class AnomalyDetectionEngine:
         # Layer 7 & 14: Explanations
         if not skip_explanation:
             explain_info = self.anomaly_explainer.explain_anomaly(
-                historical_df=self.df_historical,
+                historical_df=df_hist,
                 product_id=product_id,
                 target_date=target_date,
                 kpi=kpi_lower,
@@ -270,13 +275,23 @@ class AnomalyDetectionEngine:
         """
         Runs anomaly detection across all products within a specific category.
         """
-        prod_ids = self.df_historical[self.df_historical["category"] == category]["product_id"].unique()
-        category_anomalies = []
-        for prod_id in prod_ids:
-            res = self.run_detection(product_id=prod_id, target_date=date, kpi=kpi)
-            if "error" not in res:
-                category_anomalies.append(res)
-        return category_anomalies
+        df_hist = self.df_historical
+        if df_hist is None:
+            from src.api.dependencies import get_historical_df_from_db
+            df_hist = get_historical_df_from_db(category=category)
+            
+        original_df = self.df_historical
+        self.df_historical = df_hist
+        try:
+            prod_ids = df_hist[df_hist["category"] == category]["product_id"].unique()
+            category_anomalies = []
+            for prod_id in prod_ids:
+                res = self.run_detection(product_id=prod_id, target_date=date, kpi=kpi)
+                if "error" not in res:
+                    category_anomalies.append(res)
+            return category_anomalies
+        finally:
+            self.df_historical = original_df
 
     def get_top_products(self, date: str, kpi: str = "revenue") -> Dict[str, Any]:
         """
@@ -286,15 +301,25 @@ class AnomalyDetectionEngine:
         if hasattr(self, "_ranking_cache") and cache_key in self._ranking_cache:
             return self._ranking_cache[cache_key]
             
-        unique_prods = self.df_historical["product_id"].unique()
-        all_reports = []
-        
-        for prod_id in unique_prods:
-            res = self.run_detection(product_id=prod_id, target_date=date, kpi=kpi, skip_explanation=True)
-            if "error" not in res:
-                all_reports.append(res)
-                
-        result = self.ranker.rank_products(all_reports)
-        if hasattr(self, "_ranking_cache"):
-            self._ranking_cache[cache_key] = result
-        return result
+        df_hist = self.df_historical
+        if df_hist is None:
+            from src.api.dependencies import get_historical_df_from_db
+            df_hist = get_historical_df_from_db()
+            
+        original_df = self.df_historical
+        self.df_historical = df_hist
+        try:
+            unique_prods = df_hist["product_id"].unique()
+            all_reports = []
+            
+            for prod_id in unique_prods:
+                res = self.run_detection(product_id=prod_id, target_date=date, kpi=kpi, skip_explanation=True)
+                if "error" not in res:
+                    all_reports.append(res)
+                    
+            result = self.ranker.rank_products(all_reports)
+            if hasattr(self, "_ranking_cache"):
+                self._ranking_cache[cache_key] = result
+            return result
+        finally:
+            self.df_historical = original_df

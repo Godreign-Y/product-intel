@@ -115,8 +115,7 @@ class MultivariateAnomalyDetector:
         sorted_contribs = sorted(sorted_contribs, key=lambda x: x["contribution_pct"], reverse=True)
         
         # Nearest normal observation
-        nearest_idx = np.argmin(np.linalg.norm(X_hist - x, axis=1))
-        nearest_obs = {col: float(val) for col, val in zip(self.feature_cols, X_hist[nearest_idx])}
+        nearest_obs = self._get_nearest_observation(X_hist, x)
         
         return {
             "anomaly_detected": anomaly_detected,
@@ -144,20 +143,9 @@ class MultivariateAnomalyDetector:
         norm_score = float((0.7 + score) / 0.5) if score < -0.3 else 0.0
         anomaly_score = min(100.0, max(0.0, norm_score * 100.0))
         
-        # Feature contributions via mean difference since Isolation Forest doesn't yield native attribution
-        mean_vec = np.mean(X_hist, axis=0)
-        diff = np.abs(x - mean_vec) / (np.std(X_hist, axis=0) + 1e-5)
-        sorted_contribs = []
-        for idx, col in enumerate(self.feature_cols):
-            sorted_contribs.append({
-                "feature": col,
-                "contribution_pct": round(diff[idx] / (np.sum(diff) + 1e-5) * 100.0, 2),
-                "direction": "above baseline" if x[idx] > mean_vec[idx] else "below baseline"
-            })
-        sorted_contribs = sorted(sorted_contribs, key=lambda x: x["contribution_pct"], reverse=True)
-        
-        nearest_idx = np.argmin(np.linalg.norm(X_hist - x, axis=1))
-        nearest_obs = {col: float(val) for col, val in zip(self.feature_cols, X_hist[nearest_idx])}
+        # Feature contributions via mean difference
+        sorted_contribs = self._get_baseline_contributions(X_hist, x)
+        nearest_obs = self._get_nearest_observation(X_hist, x)
         
         return {
             "anomaly_detected": bool(pred == -1),
@@ -181,19 +169,8 @@ class MultivariateAnomalyDetector:
         anomaly_score = min(100.0, max(0.0, (score * -1.0 + 0.5) * 100.0)) if score < 0 else 0.0
         
         # Baseline difference attribution
-        mean_vec = np.mean(X_hist, axis=0)
-        diff = np.abs(x - mean_vec) / (np.std(X_hist, axis=0) + 1e-5)
-        sorted_contribs = []
-        for idx, col in enumerate(self.feature_cols):
-            sorted_contribs.append({
-                "feature": col,
-                "contribution_pct": round(diff[idx] / (np.sum(diff) + 1e-5) * 100.0, 2),
-                "direction": "above baseline" if x[idx] > mean_vec[idx] else "below baseline"
-            })
-        sorted_contribs = sorted(sorted_contribs, key=lambda x: x["contribution_pct"], reverse=True)
-        
-        nearest_idx = np.argmin(np.linalg.norm(X_hist - x, axis=1))
-        nearest_obs = {col: float(val) for col, val in zip(self.feature_cols, X_hist[nearest_idx])}
+        sorted_contribs = self._get_baseline_contributions(X_hist, x)
+        nearest_obs = self._get_nearest_observation(X_hist, x)
         
         return {
             "anomaly_detected": bool(pred == -1),
@@ -217,19 +194,8 @@ class MultivariateAnomalyDetector:
         anomaly_score = min(100.0, max(0.0, (score * -1.0 + 0.5) * 100.0)) if score < 0 else 0.0
         
         # Attribution
-        mean_vec = np.mean(X_hist, axis=0)
-        diff = np.abs(x - mean_vec) / (np.std(X_hist, axis=0) + 1e-5)
-        sorted_contribs = []
-        for idx, col in enumerate(self.feature_cols):
-            sorted_contribs.append({
-                "feature": col,
-                "contribution_pct": round(diff[idx] / (np.sum(diff) + 1e-5) * 100.0, 2),
-                "direction": "above baseline" if x[idx] > mean_vec[idx] else "below baseline"
-            })
-        sorted_contribs = sorted(sorted_contribs, key=lambda x: x["contribution_pct"], reverse=True)
-        
-        nearest_idx = np.argmin(np.linalg.norm(X_hist - x, axis=1))
-        nearest_obs = {col: float(val) for col, val in zip(self.feature_cols, X_hist[nearest_idx])}
+        sorted_contribs = self._get_baseline_contributions(X_hist, x)
+        nearest_obs = self._get_nearest_observation(X_hist, x)
         
         return {
             "anomaly_detected": bool(pred == -1),
@@ -239,3 +205,19 @@ class MultivariateAnomalyDetector:
             "feature_contributions": sorted_contribs[:5],
             "nearest_normal_observation": nearest_obs
         }
+
+    def _get_nearest_observation(self, X_hist: np.ndarray, x: np.ndarray) -> Dict[str, float]:
+        nearest_idx = np.argmin(np.linalg.norm(X_hist - x, axis=1))
+        return {col: float(val) for col, val in zip(self.feature_cols, X_hist[nearest_idx])}
+
+    def _get_baseline_contributions(self, X_hist: np.ndarray, x: np.ndarray) -> List[Dict[str, Any]]:
+        mean_vec = np.mean(X_hist, axis=0)
+        diff = np.abs(x - mean_vec) / (np.std(X_hist, axis=0) + 1e-5)
+        sorted_contribs = []
+        for idx, col in enumerate(self.feature_cols):
+            sorted_contribs.append({
+                "feature": col,
+                "contribution_pct": round(diff[idx] / (np.sum(diff) + 1e-5) * 100.0, 2),
+                "direction": "above baseline" if x[idx] > mean_vec[idx] else "below baseline"
+            })
+        return sorted(sorted_contribs, key=lambda x: x["contribution_pct"], reverse=True)

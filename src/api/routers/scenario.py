@@ -6,7 +6,7 @@ from src.api.schemas.scenario import (
     ScenarioEvaluateRequest, ScenarioEvaluateResponse, ScenarioKPISummary,
     BatchScenarioRequest, BatchScenarioResponse
 )
-from src.api.dependencies import get_simulator, get_historical_data
+from src.api.dependencies import get_simulator, get_historical_df_from_db
 from src.core.simulator import ScenarioSimulator
 
 router = APIRouter(prefix="/scenario", tags=["Scenario Analysis"])
@@ -14,10 +14,10 @@ router = APIRouter(prefix="/scenario", tags=["Scenario Analysis"])
 @router.post("/simulate", response_model=ScenarioResponse)
 async def simulate_what_if(
     payload: ScenarioRequest,
-    simulator: ScenarioSimulator = Depends(get_simulator),
-    df_hist = Depends(get_historical_data)
+    simulator: ScenarioSimulator = Depends(get_simulator)
 ):
     try:
+        df_hist = get_historical_df_from_db(product_id=payload.product_id)
         # Convert modifications payload to simple dict structure
         mods = {
             k: {"type": v.type, "value": v.value}
@@ -64,10 +64,10 @@ async def simulate_what_if(
 @router.post("/evaluate", response_model=ScenarioEvaluateResponse)
 async def evaluate_scenario(
     payload: ScenarioEvaluateRequest,
-    simulator: ScenarioSimulator = Depends(get_simulator),
-    df_hist = Depends(get_historical_data)
+    simulator: ScenarioSimulator = Depends(get_simulator)
 ):
     try:
+        df_hist = get_historical_df_from_db(product_id=payload.product_id)
         result = simulator.evaluate_scenario(
             historical_df=df_hist,
             product_id=payload.product_id,
@@ -113,12 +113,12 @@ async def evaluate_scenario(
 @router.post("/evaluate_batch", response_model=BatchScenarioResponse)
 async def evaluate_batch_scenarios(
     payload: BatchScenarioRequest,
-    simulator: ScenarioSimulator = Depends(get_simulator),
-    df_hist = Depends(get_historical_data)
+    simulator: ScenarioSimulator = Depends(get_simulator)
 ):
     try:
         results = []
         for product_id in payload.product_ids:
+            df_hist = get_historical_df_from_db(product_id=product_id)
             for scenario_conf in payload.scenarios:
                 result = simulator.evaluate_scenario(
                     historical_df=df_hist,

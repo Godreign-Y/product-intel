@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException
 
 from src.api.schemas.sensitivity import SensitivityRequest, SensitivityResponse, SensitivityItem
-from src.api.dependencies import get_sensitivity_engine, get_historical_data
+from src.api.dependencies import get_sensitivity_engine, get_historical_df_from_db
 from src.core.sensitivity import SensitivityEngine
 
 router = APIRouter(prefix="/sensitivity", tags=["Sensitivity Engine"])
@@ -9,10 +9,10 @@ router = APIRouter(prefix="/sensitivity", tags=["Sensitivity Engine"])
 @router.post("/estimate", response_model=SensitivityResponse)
 async def estimate_sensitivity_endpoint(
     payload: SensitivityRequest,
-    engine: SensitivityEngine = Depends(get_sensitivity_engine),
-    df_hist = Depends(get_historical_data)
+    engine: SensitivityEngine = Depends(get_sensitivity_engine)
 ):
     try:
+        df_hist = get_historical_df_from_db(product_id=payload.product_id)
         results = engine.calculate_sensitivity(
             historical_df=df_hist,
             product_id=payload.product_id,

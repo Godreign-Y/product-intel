@@ -14,15 +14,10 @@ def analyze_trends(
     """
     Analyzes trajectories and performs regression over time for a target metric with custom granularity.
     """
-    df_filtered = df.copy()
-    df_filtered["date"] = pd.to_datetime(df_filtered["date"])
-    
-    if start_date:
-        df_filtered = df_filtered[df_filtered["date"] >= pd.to_datetime(start_date)]
-    if end_date:
-        df_filtered = df_filtered[df_filtered["date"] <= pd.to_datetime(end_date)]
-    if product_id:
-        df_filtered = df_filtered[df_filtered["product_id"] == product_id]
+    from src.core.analytics.utils import filter_dataframe
+    df_filtered = filter_dataframe(
+        df, start_date=start_date, end_date=end_date, product_id=product_id
+    )
         
     metric_lower = metric.lower()
     if metric_lower not in df_filtered.columns:

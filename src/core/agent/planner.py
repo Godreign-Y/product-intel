@@ -27,7 +27,7 @@ class LLMPlannerAgent:
         analyzer: BusinessAnalyzer,
         analytics_engine: AnalyticsEngine,
         sensitivity_engine: SensitivityEngine,
-        df_historical: pd.DataFrame
+        df_historical: Optional[pd.DataFrame] = None
     ):
         self.forecaster = forecaster
         self.explainer = explainer
@@ -143,6 +143,41 @@ class LLMPlannerAgent:
         """
         logger.info(f"Executing route: {route} with params: {params}")
         
+        df_hist = self.df_historical
+        if df_hist is None:
+            from src.api.dependencies import get_historical_df_from_db, get_max_date_from_db
+            
+            prod_id = params.get("product_id")
+            cat = params.get("category")
+            start = params.get("start_date") or params.get("period1_start")
+            end = params.get("end_date") or params.get("period2_end")
+            
+            if route == "analysis_compare":
+                df_hist = get_historical_df_from_db(
+                    start_date=min(params.get("period1_start", "2025-01-01"), params.get("period2_start", "2025-01-01")),
+                    end_date=max(params.get("period1_end", "2025-12-31"), params.get("period2_end", "2025-12-31")),
+                    product_id=prod_id
+                )
+            elif route == "analysis_declining":
+                max_date = get_max_date_from_db()
+                lookback = params.get("lookback_days", 30)
+                cutoff_date = max_date - pd.Timedelta(days=lookback)
+                df_hist = get_historical_df_from_db(start_date=cutoff_date)
+            elif route == "analytics_benchmark":
+                df_hist = get_historical_df_from_db(
+                    start_date=start,
+                    end_date=end
+                )
+            else:
+                df_hist = get_historical_df_from_db(
+                    start_date=start,
+                    end_date=end,
+                    product_id=prod_id,
+                    category=cat
+                )
+                
+        original_df = self.df_historical
+        self.df_historical = df_hist
         try:
             # 1. Forecast
             if route == "forecast_predict":
@@ -412,6 +447,8 @@ class LLMPlannerAgent:
         except Exception as e:
             logger.error(f"Execution failed for route {route}: {e}")
             return {"error": f"Failed to execute calculation: {str(e)}"}
+        finally:
+            self.df_historical = original_df
 
     def synthesize_answer(self, query: str, route: str, raw_data: Dict[str, Any]) -> str:
         """

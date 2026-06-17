@@ -26,13 +26,154 @@ class AppState:
     anomaly_engine: Optional[Any] = None
     history_encoder: Optional[Any] = None
 
-def load_app_state(models_dir: str = "models", preprocessor_path: str = "models/preprocessor.joblib", csv_path: str = "temporal_dataset.csv"):
-    if AppState.df_historical is None:
-        logger.info(f"Loading historical dataset from {csv_path}...")
-        AppState.df_historical = pd.read_csv(csv_path)
-        AppState.df_historical["date"] = pd.to_datetime(AppState.df_historical["date"])
-        logger.info(f"Historical dataset loaded. Row count: {len(AppState.df_historical)}")
+def get_historical_df_from_csv(
+    start_date: Optional[Any] = None,
+    end_date: Optional[Any] = None,
+    product_id: Optional[str] = None,
+    category: Optional[str] = None,
+    csv_path: str = "temporal_dataset.csv"
+) -> pd.DataFrame:
+    if not os.path.exists(csv_path):
+        logger.error(f"CSV path {csv_path} does not exist.")
+        return pd.DataFrame()
         
+    df = pd.read_csv(csv_path)
+    df["date"] = pd.to_datetime(df["date"])
+    
+    if product_id:
+        df = df[df["product_id"] == product_id]
+    if category:
+        df = df[df["category"] == category]
+    if start_date:
+        df = df[df["date"] >= pd.to_datetime(start_date)]
+    if end_date:
+        df = df[df["date"] <= pd.to_datetime(end_date)]
+        
+    df = df.sort_values(by=["product_id", "date"]).reset_index(drop=True)
+    return df
+
+def get_historical_df_from_db(
+    start_date: Optional[Any] = None,
+    end_date: Optional[Any] = None,
+    product_id: Optional[str] = None,
+    category: Optional[str] = None
+) -> pd.DataFrame:
+    db_url = os.getenv("NEON_URL") or os.getenv("DATABASE_URL")
+    if db_url and not db_url.startswith("sqlite"):
+        try:
+            from src.core.history.storage.database import engine
+            from sqlalchemy import text
+            
+            query = "SELECT * FROM product_performance WHERE 1=1"
+            params = {}
+            
+            if product_id:
+                query += " AND product_id = :product_id"
+                params["product_id"] = product_id
+                
+            if category:
+                query += " AND category = :category"
+                params["category"] = category
+                
+            if start_date:
+                if hasattr(start_date, "strftime"):
+                    start_date_str = start_date.strftime("%Y-%m-%d")
+                else:
+                    start_date_str = str(start_date)
+                query += " AND date >= :start_date"
+                params["start_date"] = start_date_str
+                
+            if end_date:
+                if hasattr(end_date, "strftime"):
+                    end_date_str = end_date.strftime("%Y-%m-%d")
+                else:
+                    end_date_str = str(end_date)
+                query += " AND date <= :end_date"
+                params["end_date"] = end_date_str
+            
+            logger.info(f"Executing dynamic query on database: {query} with params: {params}")
+            
+            df = pd.read_sql(text(query), con=engine, params=params)
+            
+            if not df.empty:
+                df["date"] = pd.to_datetime(df["date"])
+                if "id" in df.columns:
+                    df = df.drop(columns=["id"])
+                df = df.sort_values(by=["product_id", "date"]).reset_index(drop=True)
+            return df
+        except Exception as e:
+            logger.error(f"Database dynamic query failed: {e}. Falling back to CSV...")
+            return get_historical_df_from_csv(start_date, end_date, product_id, category)
+    else:
+        # Try SQLite first, otherwise CSV
+        try:
+            from src.core.history.storage.database import engine
+            from sqlalchemy import text
+            query = "SELECT * FROM product_performance WHERE 1=1"
+            params = {}
+            if product_id:
+                query += " AND product_id = :product_id"
+                params["product_id"] = product_id
+            if category:
+                query += " AND category = :category"
+                params["category"] = category
+            if start_date:
+                if hasattr(start_date, "strftime"):
+                    start_date_str = start_date.strftime("%Y-%m-%d")
+                else:
+                    start_date_str = str(start_date)
+                query += " AND date >= :start_date"
+                params["start_date"] = start_date_str
+            if end_date:
+                if hasattr(end_date, "strftime"):
+                    end_date_str = end_date.strftime("%Y-%m-%d")
+                else:
+                    end_date_str = str(end_date)
+                query += " AND date <= :end_date"
+                params["end_date"] = end_date_str
+            
+            df = pd.read_sql(text(query), con=engine, params=params)
+            if not df.empty:
+                df["date"] = pd.to_datetime(df["date"])
+                if "id" in df.columns:
+                    df = df.drop(columns=["id"])
+                df = df.sort_values(by=["product_id", "date"]).reset_index(drop=True)
+            return df
+        except Exception as e:
+            logger.info(f"SQLite/DB query failed or SQLite not initialized: {e}. Using CSV...")
+            return get_historical_df_from_csv(start_date, end_date, product_id, category)
+
+def get_max_date_from_db() -> pd.Timestamp:
+    db_url = os.getenv("NEON_URL") or os.getenv("DATABASE_URL")
+    if db_url and not db_url.startswith("sqlite"):
+        try:
+            from src.core.history.storage.database import engine
+            from sqlalchemy import text
+            with engine.connect() as conn:
+                res = conn.execute(text("SELECT MAX(date) FROM product_performance")).scalar()
+                if res:
+                    return pd.to_datetime(res)
+        except Exception as e:
+            logger.error(f"Failed to get max date from db: {e}")
+    try:
+        from src.core.history.storage.database import engine
+        from sqlalchemy import text
+        with engine.connect() as conn:
+            res = conn.execute(text("SELECT MAX(date) FROM product_performance")).scalar()
+            if res:
+                return pd.to_datetime(res)
+    except Exception:
+        pass
+    try:
+        df = pd.read_csv("temporal_dataset.csv", usecols=["date"])
+        return pd.to_datetime(df["date"].max())
+    except Exception:
+        return pd.Timestamp.now()
+
+def load_app_state(models_dir: str = "models", preprocessor_path: str = "models/preprocessor.joblib", csv_path: str = "temporal_dataset.csv"):
+    # Startup preloading of the entire dataset is disabled to prevent latency.
+    AppState.df_historical = None
+
     if AppState.forecaster is None:
         logger.info(f"Loading Forecaster from {models_dir}...")
         AppState.forecaster = ProductForecaster(models_dir, preprocessor_path)
@@ -92,9 +233,8 @@ def load_app_state(models_dir: str = "models", preprocessor_path: str = "models/
         AppState.history_encoder = SentenceTransformerEncoder()
 
 def get_historical_data() -> pd.DataFrame:
-    if AppState.df_historical is None:
-        load_app_state()
-    return AppState.df_historical
+    # Query database dynamically on demand if called by legacy functions or tests
+    return get_historical_df_from_db()
 
 def get_forecaster() -> ProductForecaster:
     if AppState.forecaster is None:

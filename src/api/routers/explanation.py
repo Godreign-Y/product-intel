@@ -5,7 +5,7 @@ from src.api.schemas.explanation import (
     ExplanationRequest, ExplanationResponse, SHAPContribution,
     GlobalImportanceResponse, GlobalImportanceItem
 )
-from src.api.dependencies import get_explainer, get_historical_data
+from src.api.dependencies import get_explainer, get_historical_df_from_db
 from src.core.explainer import PredictionExplainer
 
 router = APIRouter(prefix="/explanation", tags=["Explainability"])
@@ -13,10 +13,10 @@ router = APIRouter(prefix="/explanation", tags=["Explainability"])
 @router.post("/explain", response_model=ExplanationResponse)
 async def explain_forecast(
     payload: ExplanationRequest,
-    explainer: PredictionExplainer = Depends(get_explainer),
-    df_hist = Depends(get_historical_data)
+    explainer: PredictionExplainer = Depends(get_explainer)
 ):
     try:
+        df_hist = get_historical_df_from_db(product_id=payload.product_id)
         explanation = explainer.explain_prediction(
             historical_df=df_hist,
             product_id=payload.product_id,

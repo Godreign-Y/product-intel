@@ -1,8 +1,13 @@
 import os
+from dotenv import load_dotenv
+load_dotenv()
 from sqlalchemy import create_engine
 from sqlalchemy.orm import declarative_base, sessionmaker
 
-DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///data/historical_repository.db")
+DATABASE_URL = os.getenv("NEON_URL") or os.getenv("DATABASE_URL") or "sqlite:///data/historical_repository.db"
+
+if DATABASE_URL.startswith("postgres://"):
+    DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
 
 # Ensure data directory exists
 os.makedirs("data", exist_ok=True)
