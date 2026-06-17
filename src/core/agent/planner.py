@@ -500,24 +500,39 @@ class LLMPlannerAgent:
 
     def process_query(self, query: str) -> Dict[str, Any]:
         """
-        Performs the complete agent workflow: Select Route -> Execute calculation -> Synthesize answer.
+        Performs the complete agent workflow via LangGraph pipeline.
+
+        Falls back to the legacy flow if the graph is not initialized.
         """
+        # ── Try LangGraph pipeline first ─────────────────────────────
+        try:
+            from src.core.agent.graph import run_agent_graph, _compiled_graph
+            if _compiled_graph is not None:
+                result = run_agent_graph(query)
+                return {
+                    "query": result.get("user_query", query),
+                    "route_called": result.get("route_called", ""),
+                    "raw_data": result.get("raw_data", {}),
+                    "response": result.get("final_response", ""),
+                }
+        except Exception as e:
+            logger.warning(f"LangGraph pipeline failed, falling back to legacy: {e}")
+
+        # ── Legacy fallback ──────────────────────────────────────────
         routing_info = self.route_and_extract(query)
         route = routing_info.get("route", "forecast_predict")
         params = routing_info.get("params", {})
-        
-        # Ensure query is in params so executing components can access the raw text
         if "query" not in params:
             params["query"] = query
-        
+
         raw_data = self.execute_route(route, params)
         natural_language_answer = self.synthesize_answer(query, route, raw_data)
-        
+
         return {
             "query": query,
             "route_called": route,
             "raw_data": raw_data,
-            "response": natural_language_answer
+            "response": natural_language_answer,
         }
 
     def _fallback_rule_based_router(self, query: str) -> Dict[str, Any]:

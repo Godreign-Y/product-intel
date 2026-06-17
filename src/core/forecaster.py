@@ -43,7 +43,7 @@ class ProductForecaster:
                 try:
                     with open(meta_path, "r") as f:
                         meta = json.load(f)
-                        self.step_residuals[target_lower] = meta.get("step_residuals_std", [])
+                        self.step_residuals[target_lower] = meta.get("step_residuals_std", [])  
                         logger.info(f"Loaded step residuals for target: {target_lower}")
                 except Exception as e:
                     logger.error(f"Error loading metadata for {target_lower}: {e}")

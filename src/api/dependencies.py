@@ -25,6 +25,7 @@ class AppState:
     planner_agent: Optional[Any] = None
     anomaly_engine: Optional[Any] = None
     history_encoder: Optional[Any] = None
+    llm_client: Optional[Any] = None
 
 def get_historical_df_from_csv(
     start_date: Optional[Any] = None,
@@ -231,6 +232,33 @@ def load_app_state(models_dir: str = "models", preprocessor_path: str = "models/
         logger.info("Initializing History Encoder...")
         from src.core.history.embeddings.encoder import SentenceTransformerEncoder
         AppState.history_encoder = SentenceTransformerEncoder()
+
+    # ── LangGraph Pipeline ───────────────────────────────────────────
+    if AppState.llm_client is None:
+        logger.info("Initializing LLM Client...")
+        from src.core.llm import LLMClient
+        AppState.llm_client = LLMClient()
+
+    try:
+        from src.core.agent.graph import init_graph, _compiled_graph
+        if _compiled_graph is None:
+            logger.info("Compiling LangGraph agent pipeline...")
+            init_graph(
+                llm_client=AppState.llm_client,
+                engines={
+                    "forecaster": AppState.forecaster,
+                    "explainer": AppState.explainer,
+                    "simulator": AppState.simulator,
+                    "optimizer": AppState.optimizer,
+                    "analyzer": AppState.analyzer,
+                    "analytics_engine": AppState.analytics_engine,
+                    "sensitivity_engine": AppState.sensitivity_engine,
+                    "anomaly_engine": AppState.anomaly_engine,
+                    "history_encoder": AppState.history_encoder,
+                },
+            )
+    except Exception as e:
+        logger.warning(f"LangGraph initialization failed (legacy mode will be used): {e}")
 
 def get_historical_data() -> pd.DataFrame:
     # Query database dynamically on demand if called by legacy functions or tests
