@@ -1,0 +1,174 @@
+/* ═══════════════════════════════════════════════════════════════
+   CALM Design System — Color Tokens & Theme Variables
+   Palette: Sienna · Cashmere · Oak · Bush · Charcoal
+   ═══════════════════════════════════════════════════════════════ */
+
+:root {
+  /* ── Brand Palette (constant) ── */
+  --calm-sienna: #A55A32;
+  --calm-sienna-light: #C4784F;
+  --calm-sienna-muted: rgba(165, 90, 50, 0.15);
+  --calm-cashmere: #E7DED2;
+  --calm-cashmere-dark: #D5C8B6;
+  --calm-cashmere-light-mode: #D5C8B6;
+  --calm-oak: #CDB08D;
+  --calm-oak-light: #E2D6C0;
+  --calm-oak-light-mode: #E2D6C0;
+  --calm-oak-muted: rgba(205, 176, 141, 0.25);
+  --calm-bush: #0B2420;
+  --calm-bush-light: #1A3D36;
+  --calm-bush-deep: #0E211D;
+  --calm-bush-elevated: #152B26;
+  --calm-bush-surface: #1A3530;
+  --calm-charcoal: #2D3237;
+  --calm-charcoal-light: #3A4046;
+
+  /* ── Typography ── */
+  --font-display: 'IBM Plex Sans', -apple-system, 'Segoe UI', system-ui, sans-serif;
+  --font-body: 'IBM Plex Sans', -apple-system, 'Segoe UI', system-ui, sans-serif;
+  --font-mono: 'SF Mono', 'JetBrains Mono', monospace;
+
+  /* ── Type Scale ── */
+  --text-xs: 0.75rem;
+  --text-sm: 0.875rem;
+  --text-base: 1rem;
+  --text-lg: 1.125rem;
+  --text-xl: 1.25rem;
+  --text-2xl: 1.5rem;
+  --text-3xl: 2rem;
+  --text-4xl: 2.75rem;
+  --text-5xl: 3.5rem;
+
+  --leading-tight: 1.15;
+  --leading-normal: 1.5;
+  --leading-relaxed: 1.75;
+
+  --weight-light: 300;
+  --weight-regular: 400;
+  --weight-medium: 500;
+  --weight-semibold: 600;
+
+  /* ── Spacing Scale ── */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+  --space-12: 48px;
+  --space-16: 64px;
+  --space-20: 80px;
+  --space-24: 96px;
+
+  /* ── Radius ── */
+  --radius-sm: 10px;
+  --radius-md: 16px;
+  --radius-lg: 20px;
+  --radius-xl: 24px;
+  --radius-full: 9999px;
+
+  /* ── Motion ── */
+  --transition-fast: 200ms cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-base: 300ms cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-slow: 350ms cubic-bezier(0.4, 0, 0.2, 1);
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+
+  /* ── Chart Colors ── */
+  --chart-sienna: #A55A32;
+  --chart-bush: #0B2420;
+  --chart-oak: #CDB08D;
+  --chart-cashmere: #E7DED2;
+  --chart-sienna-alpha: rgba(165, 90, 50, 0.12);
+  --chart-oak-alpha: rgba(205, 176, 141, 0.35);
+}
+
+/* ── Dark Theme (default) ── */
+:root,
+:root[data-theme='dark'] {
+  color-scheme: dark;
+
+  --bg-base: var(--calm-bush-deep);
+  --bg-elevated: var(--calm-bush-elevated);
+  --bg-surface: rgba(26, 53, 48, 0.55);
+  --bg-surface-hover: rgba(26, 53, 48, 0.75);
+  --bg-card: rgba(231, 222, 210, 0.05);
+  --bg-card-hover: rgba(231, 222, 210, 0.08);
+  --bg-glass: rgba(14, 33, 29, 0.82);
+  --bg-input: rgba(11, 36, 32, 0.65);
+
+  --text-primary: var(--calm-cashmere);
+  --text-secondary: rgba(231, 222, 210, 0.65);
+  --text-muted: rgba(231, 222, 210, 0.4);
+  --text-inverse: var(--calm-cashmere);
+
+  --border-subtle: rgba(231, 222, 210, 0.08);
+  --border-default: rgba(231, 222, 210, 0.12);
+  --border-strong: rgba(231, 222, 210, 0.2);
+  --border-focus: var(--calm-sienna);
+
+  --accent-primary: var(--calm-bush);
+  --accent-primary-hover: var(--calm-bush-light);
+  --accent-secondary: var(--calm-cashmere);
+  --accent-sienna: var(--calm-sienna);
+
+  --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.2);
+  --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.15);
+  --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.2);
+  --shadow-lg: 0 16px 48px rgba(0, 0, 0, 0.25);
+  --shadow-float: 0 20px 60px rgba(0, 0, 0, 0.3), 0 0 0 1px var(--border-subtle);
+  --shadow-glow-sienna: 0 0 40px rgba(165, 90, 50, 0.15);
+
+  --texture-overlay: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.03'/%3E%3C/svg%3E");
+
+  --success: #6B9E78;
+  --success-bg: rgba(107, 158, 120, 0.12);
+  --warning: var(--calm-sienna-light);
+  --warning-bg: var(--calm-sienna-muted);
+  --danger: #C45C4A;
+  --danger-bg: rgba(196, 92, 74, 0.12);
+  --info: var(--calm-oak);
+  --info-bg: var(--calm-oak-muted);
+
+  --sidebar-bg: rgba(11, 36, 32, 0.92);
+  --sidebar-active: rgba(165, 90, 50, 0.14);
+  --sidebar-active-indicator: var(--calm-sienna);
+}
+
+/* ── Light Theme ── */
+:root[data-theme='light'] {
+  color-scheme: light;
+
+  --bg-base: var(--calm-cashmere-light-mode);
+  --bg-elevated: var(--calm-oak-light-mode);
+  --bg-surface: rgba(240, 232, 218, 0.72);
+  --bg-surface-hover: rgba(244, 237, 224, 0.9);
+  --bg-card: rgba(250, 246, 238, 0.65);
+  --bg-card-hover: rgba(252, 249, 243, 0.85);
+  --bg-glass: rgba(226, 214, 192, 0.78);
+  --bg-input: rgba(252, 249, 243, 0.88);
+
+  --text-primary: var(--calm-bush);
+  --text-secondary: rgba(11, 36, 32, 0.65);
+  --text-muted: rgba(11, 36, 32, 0.4);
+  --text-inverse: var(--calm-cashmere);
+
+  --border-subtle: rgba(11, 36, 32, 0.06);
+  --border-default: rgba(11, 36, 32, 0.1);
+  --border-strong: rgba(11, 36, 32, 0.18);
+  --border-focus: var(--calm-sienna);
+
+  --shadow-xs: 0 1px 2px rgba(11, 36, 32, 0.04);
+  --shadow-sm: 0 2px 12px rgba(11, 36, 32, 0.06);
+  --shadow-md: 0 8px 32px rgba(11, 36, 32, 0.08);
+  --shadow-lg: 0 16px 56px rgba(11, 36, 32, 0.1);
+  --shadow-float: 0 20px 60px rgba(11, 36, 32, 0.08), 0 0 0 1px var(--border-subtle);
+  --shadow-glow-sienna: 0 0 40px rgba(165, 90, 50, 0.08);
+
+  --texture-overlay: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.025'/%3E%3C/svg%3E");
+
+  --sidebar-bg: rgba(240, 232, 218, 0.82);
+  --sidebar-active: rgba(165, 90, 50, 0.1);
+  --sidebar-active-indicator: var(--calm-sienna);
+}

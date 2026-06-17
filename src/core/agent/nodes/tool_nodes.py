@@ -196,6 +196,14 @@ def _decision_ask(params: dict[str, Any], engines: dict[str, Any]) -> dict[str, 
         db.close()
 
 
+def _nl2sql_query(params: dict[str, Any], engines: dict[str, Any]) -> dict[str, Any]:
+    """Answer a factual data question via NL2SQL."""
+    nl2sql_engine = engines.get("nl2sql_engine")
+    if nl2sql_engine is None:
+        raise RuntimeError("NL2SQL engine is not initialized.")
+    return nl2sql_engine.ask(params.get("query", ""))
+
+
 def _repository_search(params: dict[str, Any], engines: dict[str, Any]) -> dict[str, Any]:
     """Search the history repository."""
     from src.core.history.storage.database import SessionLocal
@@ -272,6 +280,7 @@ _TOOL_HANDLERS: dict[str, Any] = {
     "analysis_compare": _analysis_compare,
     "analysis_declining": _analysis_declining,
     "decision_ask": _decision_ask,
+    "nl2sql_query": _nl2sql_query,
     "repository_search": _repository_search,
     "repository_extract": _repository_extract,
 }

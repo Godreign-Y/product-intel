@@ -36,6 +36,7 @@ def _mock_engines() -> dict:
         "sensitivity_engine": MagicMock(),
         "anomaly_engine": MagicMock(),
         "history_encoder": MagicMock(),
+        "nl2sql_engine": MagicMock(),
     }
 
 
@@ -112,6 +113,37 @@ class TestAnalyticalFlow:
         assert result["dag_source"] == "pre_compiled"
         assert result["route_called"] == "forecast_predict"
         assert "forecast_total_revenue" in result["raw_data"]
+
+
+class TestDataLookupFlow:
+    """Test NL2SQL data_lookup intent through the LangGraph pipeline."""
+
+    def test_data_lookup_uses_precompiled_dag(self) -> None:
+        mock_llm = MagicMock()
+        mock_llm.generate_json.return_value = {
+            "intent": "data_lookup",
+            "confidence": 0.95,
+            "extracted_params": {"query": "Total revenue for P001"},
+        }
+        mock_llm.generate.return_value = "P001 total revenue is $220."
+
+        engines = _mock_engines()
+        engines["nl2sql_engine"].ask.return_value = {
+            "query": "Total revenue for P001",
+            "sql": "SELECT SUM(revenue) AS total FROM product_performance WHERE product_id = 'P001' LIMIT 1",
+            "columns": ["total"],
+            "rows": [{"total": 220.0}],
+            "row_count": 1,
+            "truncated": False,
+        }
+
+        init_graph(mock_llm, engines)
+        result = run_agent_graph("What is the total revenue for P001?")
+
+        assert result["dag_source"] == "pre_compiled"
+        assert result["route_called"] == "nl2sql_query"
+        assert result["raw_data"]["row_count"] == 1
+        engines["nl2sql_engine"].ask.assert_called_once()
 
 
 class TestGraphInitialization:

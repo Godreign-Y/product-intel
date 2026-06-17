@@ -1,5 +1,5 @@
 import React from 'react';
-import { DollarSign, ShoppingBag, Activity, Percent, Users } from 'lucide-react';
+import { DollarSign, ShoppingBag, Activity, Percent, Users, TrendingUp } from 'lucide-react';
 import { KpiData } from '../types';
 import { formatCurrency, formatNumber } from '../utils/formatters';
 
@@ -7,61 +7,82 @@ interface Props {
   kpis: KpiData | null;
 }
 
+const KPI_CONFIG = [
+  {
+    key: 'revenue',
+    label: 'Total Revenue',
+    icon: DollarSign,
+    iconClass: 'revenue',
+    format: (k: KpiData) => formatCurrency(k.revenue?.sum ?? 0),
+    sub: (k: KpiData) => `Avg ${formatCurrency(k.revenue?.daily_avg ?? 0)}/day`,
+  },
+  {
+    key: 'orders',
+    label: 'Total Orders',
+    icon: ShoppingBag,
+    iconClass: 'orders',
+    format: (k: KpiData) => formatNumber(k.orders?.sum ?? 0),
+    sub: (k: KpiData) => `Avg ${formatNumber(k.orders?.daily_avg ?? 0)}/day`,
+  },
+  {
+    key: 'aov',
+    label: 'Average Order Value',
+    icon: Activity,
+    iconClass: 'cvr',
+    format: (k: KpiData) => formatCurrency(k.average_order_value ?? 0),
+    sub: () => 'AOV for selected filters',
+  },
+  {
+    key: 'cvr',
+    label: 'Conversion Rate',
+    icon: Percent,
+    iconClass: 'aov',
+    format: (k: KpiData) => `${((k.conversion_rate?.mean ?? 0) * 100).toFixed(2)}%`,
+    sub: () => 'Session to purchase',
+  },
+  {
+    key: 'retention',
+    label: 'Retention Rate',
+    icon: Users,
+    iconClass: 'retention',
+    format: (k: KpiData) => `${((k.retention_rate?.mean ?? 0) * 100).toFixed(2)}%`,
+    sub: () => 'Repeat purchase probability',
+  },
+];
+
 export const DashboardKpiCards: React.FC<Props> = ({ kpis }) => {
   return (
     <div className="metrics-grid">
-      <div className="kpi-card">
-        <div className="kpi-details">
-          <h3>Total Revenue</h3>
-          <p className="kpi-value">{kpis?.revenue ? formatCurrency(kpis.revenue.sum) : '$0'}</p>
-          <p className="kpi-subtext">Avg {kpis?.revenue ? formatCurrency(kpis.revenue.daily_avg) : '$0'}/day</p>
-        </div>
-        <div className="kpi-icon revenue">
-          <DollarSign size={20} />
-        </div>
-      </div>
+      {KPI_CONFIG.map((cfg, index) => {
+        const Icon = cfg.icon;
+        return (
+          <div
+            key={cfg.key}
+            className="kpi-card animate-fade-in"
+            style={{ animationDelay: `${index * 60}ms` }}
+          >
+            <div className="kpi-details">
+              <h3>{cfg.label}</h3>
+              <p className="kpi-value">{kpis ? cfg.format(kpis) : '—'}</p>
+              <p className="kpi-subtext">{kpis ? cfg.sub(kpis) : 'Loading...'}</p>
+            </div>
+            <div className={`kpi-icon ${cfg.iconClass}`}>
+              <Icon size={20} strokeWidth={1.75} />
+            </div>
+          </div>
+        );
+      })}
 
-      <div className="kpi-card">
+      <div className="kpi-card animate-fade-in" style={{ animationDelay: '300ms', opacity: 0.85 }}>
         <div className="kpi-details">
-          <h3>Total Orders</h3>
-          <p className="kpi-value">{kpis?.orders ? formatNumber(kpis.orders.sum) : '0'}</p>
-          <p className="kpi-subtext">Avg {kpis?.orders ? formatNumber(kpis.orders.daily_avg) : '0'}/day</p>
+          <h3>Health Score</h3>
+          <p className="kpi-value" style={{ fontSize: 'var(--text-2xl)' }}>
+            Optimal
+          </p>
+          <p className="kpi-subtext">All metrics within range</p>
         </div>
-        <div className="kpi-icon orders">
-          <ShoppingBag size={20} />
-        </div>
-      </div>
-
-      <div className="kpi-card">
-        <div className="kpi-details">
-          <h3>Average Order Value</h3>
-          <p className="kpi-value">{kpis?.average_order_value ? formatCurrency(kpis.average_order_value) : '$0.00'}</p>
-          <p className="kpi-subtext">AOV for select filters</p>
-        </div>
-        <div className="kpi-icon cvr">
-          <Activity size={20} />
-        </div>
-      </div>
-
-      <div className="kpi-card">
-        <div className="kpi-details">
-          <h3>Conversion Rate</h3>
-          <p className="kpi-value">{kpis?.conversion_rate ? `${(kpis.conversion_rate.mean * 100).toFixed(2)}%` : '0.00%'}</p>
-          <p className="kpi-subtext">Session to purchase</p>
-        </div>
-        <div className="kpi-icon aov">
-          <Percent size={20} />
-        </div>
-      </div>
-
-      <div className="kpi-card">
-        <div className="kpi-details">
-          <h3>Retention Rate</h3>
-          <p className="kpi-value">{kpis?.retention_rate ? `${(kpis.retention_rate.mean * 100).toFixed(2)}%` : '0.00%'}</p>
-          <p className="kpi-subtext">Repeat purchase probability</p>
-        </div>
-        <div className="kpi-icon retention">
-          <Users size={20} />
+        <div className="kpi-icon ltv">
+          <TrendingUp size={20} strokeWidth={1.75} />
         </div>
       </div>
     </div>

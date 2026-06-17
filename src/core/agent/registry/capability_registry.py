@@ -286,6 +286,18 @@ CAPABILITY_REGISTRY: dict[str, dict[str, Any]] = {
         "estimated_latency": "slow",
     },
 
+    # ── NL2SQL Data Lookup ───────────────────────────────────────────────
+    "nl2sql_query": {
+        "description": "Answers factual data questions by generating and running a validated read-only SQL query against product_performance, events, experiments, snapshots, reports, and knowledge_base.",
+        "input_schema": {
+            "query": {"type": "str", "required": True},
+        },
+        "output_schema": "{ query: str, sql: str, columns: [str], rows: [dict], row_count: int, truncated: bool }",
+        "source_module": "src.core.nl2sql.engine.NL2SQLEngine.ask",
+        "requires_data": False,
+        "estimated_latency": "fast",
+    },
+
     # ── History Repository ───────────────────────────────────────────────
     "repository_search": {
         "description": "Semantic search over historical reports, A/B tests, and experiments.",

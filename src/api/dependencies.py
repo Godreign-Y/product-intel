@@ -12,6 +12,19 @@ from src.utils.logger import setup_logger
 
 logger = setup_logger("dependencies")
 
+
+def _safe_date(value: Any) -> Optional[pd.Timestamp]:
+    """Parse absolute or relative dates without raising. Returns None if invalid."""
+    try:
+        from src.core.nl2sql.dates import safe_parse_date
+        return safe_parse_date(value)
+    except Exception:
+        try:
+            return pd.to_datetime(value)
+        except Exception:
+            return None
+
+
 # In-memory global cache for files that should load only once
 class AppState:
     df_historical: Optional[pd.DataFrame] = None
@@ -26,6 +39,7 @@ class AppState:
     anomaly_engine: Optional[Any] = None
     history_encoder: Optional[Any] = None
     llm_client: Optional[Any] = None
+    nl2sql_engine: Optional[Any] = None
 
 def get_historical_df_from_csv(
     start_date: Optional[Any] = None,
@@ -46,9 +60,13 @@ def get_historical_df_from_csv(
     if category:
         df = df[df["category"] == category]
     if start_date:
-        df = df[df["date"] >= pd.to_datetime(start_date)]
+        parsed_start = _safe_date(start_date)
+        if parsed_start is not None:
+            df = df[df["date"] >= parsed_start]
     if end_date:
-        df = df[df["date"] <= pd.to_datetime(end_date)]
+        parsed_end = _safe_date(end_date)
+        if parsed_end is not None:
+            df = df[df["date"] <= parsed_end]
         
     df = df.sort_values(by=["product_id", "date"]).reset_index(drop=True)
     return df
@@ -77,20 +95,16 @@ def get_historical_df_from_db(
                 params["category"] = category
                 
             if start_date:
-                if hasattr(start_date, "strftime"):
-                    start_date_str = start_date.strftime("%Y-%m-%d")
-                else:
-                    start_date_str = str(start_date)
-                query += " AND date >= :start_date"
-                params["start_date"] = start_date_str
+                parsed_start = _safe_date(start_date)
+                if parsed_start is not None:
+                    query += " AND date >= :start_date"
+                    params["start_date"] = parsed_start.strftime("%Y-%m-%d")
                 
             if end_date:
-                if hasattr(end_date, "strftime"):
-                    end_date_str = end_date.strftime("%Y-%m-%d")
-                else:
-                    end_date_str = str(end_date)
-                query += " AND date <= :end_date"
-                params["end_date"] = end_date_str
+                parsed_end = _safe_date(end_date)
+                if parsed_end is not None:
+                    query += " AND date <= :end_date"
+                    params["end_date"] = parsed_end.strftime("%Y-%m-%d")
             
             logger.info(f"Executing dynamic query on database: {query} with params: {params}")
             
@@ -119,19 +133,15 @@ def get_historical_df_from_db(
                 query += " AND category = :category"
                 params["category"] = category
             if start_date:
-                if hasattr(start_date, "strftime"):
-                    start_date_str = start_date.strftime("%Y-%m-%d")
-                else:
-                    start_date_str = str(start_date)
-                query += " AND date >= :start_date"
-                params["start_date"] = start_date_str
+                parsed_start = _safe_date(start_date)
+                if parsed_start is not None:
+                    query += " AND date >= :start_date"
+                    params["start_date"] = parsed_start.strftime("%Y-%m-%d")
             if end_date:
-                if hasattr(end_date, "strftime"):
-                    end_date_str = end_date.strftime("%Y-%m-%d")
-                else:
-                    end_date_str = str(end_date)
-                query += " AND date <= :end_date"
-                params["end_date"] = end_date_str
+                parsed_end = _safe_date(end_date)
+                if parsed_end is not None:
+                    query += " AND date <= :end_date"
+                    params["end_date"] = parsed_end.strftime("%Y-%m-%d")
             
             df = pd.read_sql(text(query), con=engine, params=params)
             if not df.empty:
@@ -239,6 +249,15 @@ def load_app_state(models_dir: str = "models", preprocessor_path: str = "models/
         from src.core.llm import LLMClient
         AppState.llm_client = LLMClient()
 
+    if AppState.nl2sql_engine is None:
+        logger.info("Initializing NL2SQL Engine...")
+        from src.core.history.storage.database import engine as db_engine
+        from src.core.nl2sql import NL2SQLEngine
+        AppState.nl2sql_engine = NL2SQLEngine(
+            llm_client=AppState.llm_client,
+            db_engine=db_engine,
+        )
+
     try:
         from src.core.agent.graph import init_graph, _compiled_graph
         if _compiled_graph is None:
@@ -255,6 +274,7 @@ def load_app_state(models_dir: str = "models", preprocessor_path: str = "models/
                     "sensitivity_engine": AppState.sensitivity_engine,
                     "anomaly_engine": AppState.anomaly_engine,
                     "history_encoder": AppState.history_encoder,
+                    "nl2sql_engine": AppState.nl2sql_engine,
                 },
             )
     except Exception as e:

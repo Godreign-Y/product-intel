@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { NavLink, Outlet } from 'react-router-dom';
 import {
   LayoutDashboard,
@@ -6,73 +6,90 @@ import {
   AlertTriangle,
   BookOpen,
   MessageSquare,
-  Sparkles,
-  Settings
+  Settings,
+  Menu,
+  X,
+  Sun,
+  Moon,
 } from 'lucide-react';
 import { FilterProvider } from '../components/FilterContext';
+import { useTheme } from '../context/ThemeContext';
+
+const NAV_ITEMS = [
+  { to: '/', end: true, icon: LayoutDashboard, label: 'Dashboard' },
+  { to: '/predictions', icon: TrendingUp, label: 'Analytics' },
+  { to: '/recommendations', icon: AlertTriangle, label: 'Anomalies' },
+  { to: '/experiments', icon: BookOpen, label: 'Repository' },
+  { to: '/workspace', icon: MessageSquare, label: 'AI Assistant' },
+  { to: '/settings', icon: Settings, label: 'Settings' },
+];
 
 export const MainLayout: React.FC = () => {
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const { theme, toggleTheme } = useTheme();
+
+  const closeSidebar = () => setSidebarOpen(false);
+
   return (
     <FilterProvider>
+      <button
+        className="mobile-menu-btn"
+        onClick={() => setSidebarOpen(!sidebarOpen)}
+        aria-label="Toggle navigation"
+      >
+        {sidebarOpen ? <X size={20} /> : <Menu size={20} />}
+      </button>
+
+      <div
+        className={`sidebar-overlay ${sidebarOpen ? 'visible' : ''}`}
+        onClick={closeSidebar}
+        aria-hidden
+      />
+
       <div className="app-container">
-        {/* Sidebar */}
-        <div className="sidebar">
+        <aside className={`sidebar ${sidebarOpen ? 'open' : ''}`}>
           <div className="logo-container">
-            <Sparkles size={24} className="kpi-icon ltv" />
-            <span className="logo-text">ProductIntel</span>
+            <div className="logo-mark">
+              <span style={{ fontFamily: 'var(--font-display)', fontSize: 18 }}>P</span>
+            </div>
+            <div>
+              <div className="logo-text">ProductIntel</div>
+              <div className="logo-tagline">Calm Intelligence</div>
+            </div>
           </div>
 
-          <div className="nav-links">
-            <NavLink 
-              to="/" 
-              end
-              className={({ isActive }) => `nav-button ${isActive ? 'active' : ''}`}
-            >
-              <LayoutDashboard size={18} />
-              Dashboard
-            </NavLink>
-            <NavLink 
-              to="/predictions" 
-              className={({ isActive }) => `nav-button ${isActive ? 'active' : ''}`}
-            >
-              <TrendingUp size={18} />
-              Trend Analysis
-            </NavLink>
-            <NavLink 
-              to="/recommendations" 
-              className={({ isActive }) => `nav-button ${isActive ? 'active' : ''}`}
-            >
-              <AlertTriangle size={18} />
-              Anomalies
-            </NavLink>
-            <NavLink 
-              to="/experiments" 
-              className={({ isActive }) => `nav-button ${isActive ? 'active' : ''}`}
-            >
-              <BookOpen size={18} />
-              Repository
-            </NavLink>
-            <NavLink 
-              to="/workspace" 
-              className={({ isActive }) => `nav-button ${isActive ? 'active' : ''}`}
-            >
-              <MessageSquare size={18} />
-              AI Assistant
-            </NavLink>
-            <NavLink 
-              to="/settings" 
-              className={({ isActive }) => `nav-button ${isActive ? 'active' : ''}`}
-            >
-              <Settings size={18} />
-              Settings
-            </NavLink>
-          </div>
-        </div>
+          <div className="nav-section-label">Navigation</div>
+          <nav className="nav-links">
+            {NAV_ITEMS.map(({ to, end, icon: Icon, label }) => (
+              <NavLink
+                key={to}
+                to={to}
+                end={end}
+                className={({ isActive }) => `nav-button ${isActive ? 'active' : ''}`}
+                onClick={closeSidebar}
+              >
+                <Icon size={18} strokeWidth={1.75} />
+                {label}
+              </NavLink>
+            ))}
+          </nav>
 
-        {/* Main Panel Content */}
-        <div className="main-content">
-          <Outlet />
-        </div>
+          <div className="sidebar-footer">
+            <button className="theme-toggle-btn" onClick={toggleTheme}>
+              <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                {theme === 'dark' ? <Moon size={16} /> : <Sun size={16} />}
+                {theme === 'dark' ? 'Dark Mode' : 'Light Mode'}
+              </span>
+              <span style={{ fontSize: 11, opacity: 0.6 }}>Toggle</span>
+            </button>
+          </div>
+        </aside>
+
+        <main className="main-content">
+          <div className="page-enter">
+            <Outlet />
+          </div>
+        </main>
       </div>
     </FilterProvider>
   );

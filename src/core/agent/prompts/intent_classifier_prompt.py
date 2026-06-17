@@ -40,6 +40,12 @@ Classify into one of these if the query is a legitimate business analytics quest
 - "kpi_summary": Requesting general performance summaries or KPI totals.
   Extract: product_id (optional), category (optional), start_date (optional), end_date (optional).
 
+- "data_lookup": Factual retrieval from stored data — counts, sums, lists, rankings, filters.
+  Use for ad-hoc questions answerable directly from the database without forecasting or ML.
+  Examples: "total revenue for P002 in January", "top 5 products by profit", "how many orders last week".
+  Do NOT use for forecasts, recommendations, explanations, or what-if scenarios.
+  Extract: query (raw user text).
+
 - "seasonality_analysis": Weekend patterns, day-of-week effects, monthly cycles.
   Extract: product_id (optional), category (optional), start_date (optional), end_date (optional).
 

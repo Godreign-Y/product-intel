@@ -16,7 +16,13 @@ export const apiClient = async <T>(endpoint: string, options?: RequestInit): Pro
   
   if (!response.ok) {
     const errorData = await response.json().catch(() => null);
-    throw new Error(errorData?.detail || errorData?.message || `API Error: ${response.status} ${response.statusText}`);
+    let detail = errorData?.message || `API Error: ${response.status} ${response.statusText}`;
+    if (errorData?.detail) {
+      detail = Array.isArray(errorData.detail)
+        ? errorData.detail.map((d: { msg?: string }) => d.msg).filter(Boolean).join('; ')
+        : String(errorData.detail);
+    }
+    throw new Error(detail);
   }
   
   return response.json();

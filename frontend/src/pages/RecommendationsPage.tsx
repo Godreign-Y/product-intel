@@ -5,7 +5,7 @@ import { useTopAnomalies, useAnomalyDetails } from '../hooks/useRecommendations'
 import { LoadingState, ErrorState } from '../components/LoadingErrorState';
 
 export default function RecommendationsPage() {
-  const [anomalyDate, setAnomalyDate] = useState('2025-12-31');
+  const [anomalyDate, setAnomalyDate] = useState('2025-06-15');
   const [anomalyKpi, setAnomalyKpi] = useState('revenue');
   const [selectedAnomalyProd, setSelectedAnomalyProd] = useState<string | null>(null);
 
@@ -69,7 +69,7 @@ export default function RecommendationsPage() {
         </div>
 
         {anomaliesLoading ? (
-          <LoadingState message="Scanning historical records for anomalies..." />
+          <LoadingState message="Scanning products for anomalies — this may take up to a minute..." />
         ) : isAnomaliesError ? (
           <ErrorState message={anomaliesError instanceof Error ? anomaliesError.message : 'Unknown error'} onRetry={() => refetchAnomalies()} />
         ) : (

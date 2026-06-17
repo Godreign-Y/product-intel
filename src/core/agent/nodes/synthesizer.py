@@ -79,6 +79,12 @@ def synthesize_analytical_response(
     if route == "decision_ask" and "explanation" in raw_data:
         return {"final_response": raw_data["explanation"]}
 
+    # NL2SQL: format tabular results deterministically (fast, no truncation)
+    if route == "nl2sql_query":
+        formatted = _format_nl2sql_response(state.get("user_query", ""), raw_data)
+        if formatted is not None:
+            return {"final_response": formatted}
+
     # LLM synthesis
     try:
         truncated = json.dumps(raw_data, indent=2, default=str)[:3000]
@@ -107,3 +113,50 @@ def synthesize_analytical_response(
                 f"{json.dumps(raw_data, indent=2, default=str)[:2000]}"
             ),
         }
+
+
+def _format_nl2sql_response(question: str, raw_data: dict[str, Any]) -> str | None:
+    """Build a markdown answer directly from NL2SQL tabular results."""
+    if raw_data.get("error"):
+        return (
+            "I couldn't retrieve that from the database. "
+            f"Reason: {raw_data['error']}\n\n"
+            "Try rephrasing, or specify a product (e.g. P001) and a date range "
+            "within 2025-01-01 to 2025-12-31."
+        )
+
+    rows = raw_data.get("rows", [])
+    if not rows:
+        return (
+            "No matching records were found for that query. "
+            "Note: the available data covers 2025-01-01 to 2025-12-31."
+        )
+
+    columns = raw_data.get("columns") or list(rows[0].keys())
+
+    lines: list[str] = []
+    if question:
+        lines.append(f"Here are the results for: _{question.strip()}_\n")
+
+    lines.append("| " + " | ".join(str(c) for c in columns) + " |")
+    lines.append("| " + " | ".join("---" for _ in columns) + " |")
+
+    for row in rows:
+        cells = []
+        for col in columns:
+            val = row.get(col)
+            if val is None:
+                cells.append("—")
+            elif isinstance(val, float):
+                cells.append(f"{val:,.2f}")
+            elif isinstance(val, int):
+                cells.append(f"{val:,}")
+            else:
+                cells.append(str(val))
+        lines.append("| " + " | ".join(cells) + " |")
+
+    lines.append(f"\n**{len(rows)} row(s) returned.**")
+    if raw_data.get("truncated"):
+        lines.append("_Showing the first 100 rows._")
+
+    return "\n".join(lines)

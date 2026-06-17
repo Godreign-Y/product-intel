@@ -36,6 +36,10 @@ STANDARD_DAGS: dict[str, list[dict[str, Any]]] = {
         {"step_id": "s1", "tool_id": "analytics_kpi", "params": {}, "depends_on": []},
     ],
 
+    "data_lookup": [
+        {"step_id": "s1", "tool_id": "nl2sql_query", "params": {}, "depends_on": []},
+    ],
+
     "trend_analysis": [
         {"step_id": "s1", "tool_id": "analytics_trend", "params": {"metric": "revenue"}, "depends_on": []},
     ],

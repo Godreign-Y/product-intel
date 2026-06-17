@@ -2,7 +2,10 @@ import apiClient from '../api/client';
 import { RecommendationResponse } from '../types';
 
 export const getTopAnomalies = async (targetDate: string, kpi: string) => {
-  return apiClient<any>(`/anomaly/top-products?target_date=${targetDate}&kpi=${kpi}&limit=10`, { method: 'GET' });
+  return apiClient<any>('/anomaly/top-products', {
+    method: 'POST',
+    body: JSON.stringify({ target_date: targetDate, kpi, limit: 25 }),
+  });
 };
 
 export const getAnomalyDetails = async (productId: string, targetDate: string, kpi: string) => {

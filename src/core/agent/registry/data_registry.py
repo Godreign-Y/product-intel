@@ -10,6 +10,7 @@ from typing import Any
 
 import pandas as pd
 
+from src.core.nl2sql.schema import ALLOWED_TABLES, TABLE_SCHEMAS
 from src.utils.logger import setup_logger
 
 logger = setup_logger("data_registry")
@@ -25,6 +26,7 @@ COLUMNS = [
     "date", "product_id", "category",
     *DRIVERS, *METRICS,
 ]
+QUERYABLE_TABLES = sorted(ALLOWED_TABLES)
 
 
 def get_data_summary() -> dict[str, Any]:
@@ -48,6 +50,7 @@ def get_data_summary() -> dict[str, Any]:
         "columns": COLUMNS,
         "metrics": METRICS,
         "drivers": DRIVERS,
+        "queryable_tables": QUERYABLE_TABLES,
         "product_ids": sorted(df["product_id"].unique().tolist()),
         "categories": sorted(df["category"].unique().tolist()),
         "date_range": {
@@ -61,8 +64,14 @@ def get_data_summary() -> dict[str, Any]:
 def get_data_summary_for_prompt() -> str:
     """Format the data summary as a text block for LLM prompt injection."""
     summary = get_data_summary()
+    table_summaries = "\n".join(
+        f"  - {name}: {TABLE_SCHEMAS[name]['description']}"
+        for name in QUERYABLE_TABLES
+        if name in TABLE_SCHEMAS
+    )
     return (
-        f"Database table: {summary['table']}\n"
+        f"Primary table: {summary['table']}\n"
+        f"Queryable tables (use nl2sql_query for ad-hoc factual questions):\n{table_summaries}\n"
         f"Available product IDs: {summary['product_ids']}\n"
         f"Available categories: {summary['categories']}\n"
         f"Date range: {summary['date_range']['min']} to {summary['date_range']['max']}\n"
@@ -78,6 +87,7 @@ def _empty_summary() -> dict[str, Any]:
         "columns": COLUMNS,
         "metrics": METRICS,
         "drivers": DRIVERS,
+        "queryable_tables": QUERYABLE_TABLES,
         "product_ids": [],
         "categories": [],
         "date_range": {"min": "N/A", "max": "N/A"},

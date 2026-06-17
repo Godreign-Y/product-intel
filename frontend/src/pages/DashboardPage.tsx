@@ -8,113 +8,152 @@ import { DashboardKpiCards } from '../components/DashboardKpiCards';
 import { formatNumber } from '../utils/formatters';
 import { useDashboard } from '../hooks/useDashboard';
 import { LoadingState, ErrorState } from '../components/LoadingErrorState';
+import { Button } from '../components/ui/Button';
+import { Card, CardHeader } from '../components/ui/Card';
+import { DashboardSkeleton } from '../components/ui/Skeleton';
+import { useTheme } from '../context/ThemeContext';
+import { CHART_COLORS, getChartScales, getChartLegend } from '../utils/chartTheme';
 
 export default function DashboardPage() {
   const { selectedProduct, selectedCategory, startDate, endDate } = useFilters();
-  
+  const { theme } = useTheme();
+
   const { data, isLoading, isError, error, refetch, isFetching } = useDashboard({
     product_id: selectedProduct || null,
     category: selectedCategory || null,
     start_date: startDate || null,
-    end_date: endDate || null
+    end_date: endDate || null,
   });
 
-  const channelChartConfig = data?.channelData?.channel_mix ? {
-    labels: Object.keys(data.channelData.channel_mix),
-    datasets: [{
-      data: Object.values(data.channelData.channel_mix).map((v: any) => v * 100),
-      backgroundColor: ['#8b5cf6', '#10b981', '#06b6d4', '#f59e0b'],
-      borderWidth: 0,
-      hoverOffset: 4
-    }]
-  } : null;
+  const isDark = theme === 'dark';
+  const scales = getChartScales(isDark);
+  const legend = getChartLegend(isDark);
 
-  const campaignChartConfig = data?.campaignData?.campaign_mix ? {
-    labels: Object.keys(data.campaignData.campaign_mix),
-    datasets: [{
-      label: 'Campaign Mix Share (%)',
-      data: Object.values(data.campaignData.campaign_mix).map((v: any) => v * 100),
-      backgroundColor: ['rgba(139, 92, 246, 0.6)', 'rgba(16, 185, 129, 0.6)', 'rgba(6, 182, 212, 0.6)', 'rgba(245, 158, 11, 0.6)'],
-      borderColor: ['#8b5cf6', '#10b981', '#06b6d4', '#f59e0b'],
-      borderWidth: 1
-    }]
-  } : null;
+  const campaignChartConfig = data?.campaignData?.campaign_mix
+    ? {
+        labels: Object.keys(data.campaignData.campaign_mix),
+        datasets: [
+          {
+            label: 'Campaign Mix (%)',
+            data: Object.values(data.campaignData.campaign_mix).map((v: unknown) => (v as number) * 100),
+            backgroundColor: CHART_COLORS.paletteAlpha,
+            borderColor: CHART_COLORS.palette,
+            borderWidth: 1.5,
+            borderRadius: 8,
+          },
+        ],
+      }
+    : null;
+
+  const channelChartConfig = data?.channelData?.channel_mix
+    ? {
+        labels: Object.keys(data.channelData.channel_mix),
+        datasets: [
+          {
+            data: Object.values(data.channelData.channel_mix).map((v: unknown) => (v as number) * 100),
+            backgroundColor: CHART_COLORS.palette,
+            borderWidth: 0,
+            hoverOffset: 8,
+            spacing: 2,
+          },
+        ],
+      }
+    : null;
 
   return (
     <>
-      <div className="header">
-        <div>
+      <header className="page-header">
+        <div className="page-header-text">
           <h1>Performance Overview</h1>
-          <p>Core business metrics and sales distributions</p>
+          <p>Executive summary of core business metrics and channel distributions</p>
         </div>
-        <button 
-          onClick={() => refetch()}
-          className="filter-select"
-          style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}
-          disabled={isFetching}
-        >
-          <RefreshCw size={14} className={isFetching ? 'spin' : ''} />
-          Sync
-        </button>
-      </div>
+        <div className="page-header-actions">
+          <Button
+            variant="ghost"
+            size="sm"
+            icon={<RefreshCw size={14} className={isFetching ? 'spin' : ''} />}
+            onClick={() => refetch()}
+            disabled={isFetching}
+          >
+            Sync Data
+          </Button>
+        </div>
+      </header>
 
       <GlobalFilterBar />
 
       <div className="animate-fade-in">
         {isLoading ? (
-          <LoadingState message="Loading Dashboard Metrics..." />
+          <DashboardSkeleton />
         ) : isError ? (
-          <ErrorState message={error instanceof Error ? error.message : 'Unknown error'} onRetry={() => refetch()} />
+          <ErrorState
+            message={error instanceof Error ? error.message : 'Unknown error'}
+            onRetry={() => refetch()}
+          />
         ) : (
           <>
             <DashboardKpiCards kpis={data?.kpis || null} />
 
-            <div className="charts-grid">
-              <div className="chart-card">
-                <h3><Package size={16} /> Campaign Marketing Mix</h3>
-                <div style={{ height: '260px', position: 'relative', display: 'flex', justifyContent: 'center' }}>
+            <div className="bento-grid">
+              <Card variant="elevated" padding="lg" className="bento-wide">
+                <CardHeader
+                  title="Campaign Marketing Mix"
+                  subtitle="Spend allocation across channels"
+                  icon={<Package size={18} />}
+                />
+                <div className="chart-container">
                   {campaignChartConfig ? (
-                    <Bar 
+                    <Bar
                       data={campaignChartConfig}
                       options={{
                         responsive: true,
                         maintainAspectRatio: false,
                         plugins: { legend: { display: false } },
-                        scales: {
-                          y: { ticks: { color: '#9ca3af' }, grid: { color: 'rgba(255,255,255,0.05)' } },
-                          x: { ticks: { color: '#9ca3af' }, grid: { display: false } }
-                        }
+                        scales,
                       }}
                     />
-                  ) : <p>No Campaign Data Available</p>}
+                  ) : (
+                    <div className="empty-state" style={{ padding: 'var(--space-10)' }}>
+                      <p>No campaign data available</p>
+                    </div>
+                  )}
                 </div>
-              </div>
+              </Card>
 
-              <div className="chart-card">
-                <h3><Users size={16} /> Sales Channel Split</h3>
-                <div style={{ height: '220px', position: 'relative', display: 'flex', justifyContent: 'center' }}>
+              <Card variant="elevated" padding="lg">
+                <CardHeader
+                  title="Sales Channel Split"
+                  subtitle="Revenue distribution"
+                  icon={<Users size={18} />}
+                />
+                <div className="chart-container-sm">
                   {channelChartConfig ? (
-                    <Doughnut 
+                    <Doughnut
                       data={channelChartConfig}
                       options={{
                         responsive: true,
                         maintainAspectRatio: false,
-                        plugins: {
-                          legend: { position: 'bottom', labels: { color: '#9ca3af', font: { family: 'Outfit' }, boxWidth: 12 } }
-                        }
+                        cutout: '68%',
+                        plugins: { legend },
                       }}
                     />
-                  ) : <p>No Channel Data Available</p>}
+                  ) : (
+                    <div className="empty-state" style={{ padding: 'var(--space-10)' }}>
+                      <p>No channel data available</p>
+                    </div>
+                  )}
                 </div>
-              </div>
+              </Card>
             </div>
 
             {selectedProduct && data?.inventoryData && (
-              <div className="chart-card animate-fade-in" style={{ marginBottom: '28px' }}>
-                <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <Package size={16} /> Product Inventory & Stockout Assessment ({selectedProduct})
-                </h3>
-                <div className="trend-stats" style={{ margin: '0' }}>
+              <Card variant="glass" padding="lg" className="animate-fade-in-scale">
+                <CardHeader
+                  title={`Inventory Assessment · ${selectedProduct}`}
+                  subtitle="Stock levels and stockout risk analysis"
+                  icon={<Package size={18} />}
+                />
+                <div className="trend-stats" style={{ margin: 0 }}>
                   <div className="trend-stat-card">
                     <label>Current Stock</label>
                     <p>{formatNumber(data.inventoryData.current_stock)} units</p>
@@ -127,20 +166,33 @@ export default function DashboardPage() {
                     <label>Estimated Coverage</label>
                     <p>{data.inventoryData.estimated_days_of_stock.toFixed(1)} days</p>
                   </div>
-                  <div className="trend-stat-card" style={{ 
-                    borderColor: data.inventoryData.stockout_risk === 'High' ? 'rgba(239, 68, 68, 0.4)' : 
-                                 data.inventoryData.stockout_risk === 'Medium' ? 'rgba(245, 158, 11, 0.4)' : 'rgba(16, 185, 129, 0.4)'
-                  }}>
+                  <div
+                    className="trend-stat-card"
+                    style={{
+                      borderColor:
+                        data.inventoryData.stockout_risk === 'High'
+                          ? 'rgba(196, 92, 74, 0.35)'
+                          : data.inventoryData.stockout_risk === 'Medium'
+                            ? 'rgba(165, 90, 50, 0.35)'
+                            : 'rgba(107, 158, 120, 0.35)',
+                    }}
+                  >
                     <label>Stockout Risk</label>
-                    <p style={{ 
-                      color: data.inventoryData.stockout_risk === 'High' ? 'var(--danger)' : 
-                             data.inventoryData.stockout_risk === 'Medium' ? 'var(--warning)' : 'var(--success)'
-                    }}>
+                    <p
+                      style={{
+                        color:
+                          data.inventoryData.stockout_risk === 'High'
+                            ? 'var(--danger)'
+                            : data.inventoryData.stockout_risk === 'Medium'
+                              ? 'var(--calm-sienna)'
+                              : 'var(--success)',
+                      }}
+                    >
                       {data.inventoryData.stockout_risk}
                     </p>
                   </div>
                 </div>
-              </div>
+              </Card>
             )}
           </>
         )}
