@@ -6,8 +6,6 @@ from discovery.pair_selector import PairSelector
 
 from discovery.numerical.pearson import PearsonDiscovery
 from discovery.numerical.spearman import SpearmanDiscovery
-
-from discovery.categorical.chi_square import ChiSquareDiscovery
 from discovery.categorical.cramers import CramersVDiscovery
 
 from discovery.mixed.anova import AnovaDiscovery
@@ -44,13 +42,6 @@ def build_dependency_graph(csv_path):
         )
     )
 
-    chi_relationships = (
-        ChiSquareDiscovery().chi_square_discover(
-            df,
-            pairs
-        )
-    )
-
     cramers_relationships = (
         CramersVDiscovery().cramers_v_discover(
             df,
@@ -69,7 +60,6 @@ def build_dependency_graph(csv_path):
     all_edges = (
         pearson_relationships
         + spearman_relationships
-        + chi_relationships
         + cramers_relationships
         + anova_relationships
     )
