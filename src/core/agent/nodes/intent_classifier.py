@@ -3,6 +3,7 @@ Intent Classifier Node — first node in the LangGraph pipeline.
 
 Classifies user queries into intents and applies guardrails.
 Greetings and out-of-scope queries are short-circuited here.
+Uses fast SentenceTransformer embeddings for zero-latency classification.
 """
 
 import re
@@ -10,6 +11,7 @@ from typing import Any
 
 from src.core.agent.state import AgentState
 from src.core.agent.prompts.intent_classifier_prompt import INTENT_CLASSIFIER_SYSTEM_PROMPT
+from src.core.agent.nodes.intent_embeddings import get_intent_matcher
 from src.core.llm import LLMClient
 from src.utils.logger import setup_logger
 
@@ -22,7 +24,7 @@ _GREETING_PATTERNS = {
     "thanks", "thank you", "thankyou", "ok", "okay", "bye", "goodbye",
 }
 
-_NON_ANALYTICAL_INTENTS = {"greeting", "system_status", "out_of_scope", "clarification_needed"}
+_NON_ANALYTICAL_INTENTS = {"greeting", "system_status", "out_of_scope", "clarification_needed", "meta_query"}
 
 # Factual DB lookups (rankings, counts, lists) → route directly to NL2SQL.
 _DATA_LOOKUP_PATTERNS = (
@@ -40,8 +42,8 @@ _DATA_LOOKUP_PATTERNS = (
 
 # If these appear, prefer the ML/analytics engines, not a plain SQL lookup.
 _ENGINE_INTENT_PATTERNS = re.compile(
-    r"\b(forecast|predict|projection|explain why|what if|what-if|should we|"
-    r"recommend|recommendation|optimi[sz]e|simulate|simulation|anomal|sensitivit)\b",
+    r"\b(forecast|predict|projection|explain why|why|what if|what-if|should we|"
+    r"recommend|recommendation|optimi[sz]e|simulate|simulation|anomal|sensitivit|compare)\b",
     re.IGNORECASE,
 )
 
@@ -54,11 +56,11 @@ def _is_data_lookup_query(query: str) -> bool:
 
 
 def classify_intent(state: AgentState, llm_client: LLMClient) -> dict[str, Any]:
-    """Classify the user's query into an intent with guardrails."""
-    query = state["user_query"].strip()
+    """Classify the user's query into an intent using embeddings with LLM fallback."""
+    query = state.get("user_query", "").strip()
     query_lower = query.lower().strip("!?., ")
 
-    # ── Fast-path: rule-based greeting detection ─────────────────────
+    # 1. Fast-path: rule-based greeting detection
     if query_lower in _GREETING_PATTERNS or len(query_lower) < 3:
         logger.info(f"Fast-path greeting detected: '{query}'")
         return {
@@ -69,18 +71,45 @@ def classify_intent(state: AgentState, llm_client: LLMClient) -> dict[str, Any]:
             "block_reason": "",
         }
 
-    # ── Fast-path: factual data lookup (rankings, lists, counts) ─────
+    # 2. Fast-path: factual data lookup (rankings, lists, counts)
     if _is_data_lookup_query(query):
-        logger.info(f"Fast-path data_lookup detected: '{query}'")
+        logger.info(f"Fast-path data_lookup regex detected: '{query}'")
         return {
             "intent": "data_lookup",
-            "intent_confidence": 0.97,
+            "intent_confidence": 0.95,
             "extracted_params": {"query": query},
+            "execution_plan": [{"step_id": "s1", "tool_id": "nl2sql_query", "params": {"query": query}, "depends_on": []}],
+            "dag_source": "fast_path",
             "is_blocked": False,
             "block_reason": "",
         }
 
-    # ── LLM classification ───────────────────────────────────────────
+    # 3. Embedding matching
+    matcher = get_intent_matcher()
+    intent, confidence = matcher.match_intent(query, threshold=0.65)
+    
+    if intent != "unknown":
+        logger.info(f"Embedding matched intent '{intent}' with confidence {confidence:.2f}")
+        is_blocked = intent == "out_of_scope"
+        block_reason = "Query is outside the scope of business analytics." if is_blocked else ""
+        
+        result = {
+            "intent": intent,
+            "intent_confidence": confidence,
+            "extracted_params": {"query": query}, # Planner will extract actual params
+            "is_blocked": is_blocked,
+            "block_reason": block_reason,
+        }
+        
+        # If the embedding strongly hits data_lookup, inject the plan directly
+        if intent == "data_lookup":
+            result["execution_plan"] = [{"step_id": "s1", "tool_id": "nl2sql_query", "params": {"query": query}, "depends_on": []}]
+            result["dag_source"] = "embedding_fast_path"
+            
+        return result
+
+    # 4. LLM fallback
+    logger.info(f"Embedding confidence low ({confidence:.2f}). Falling back to LLM intent classification.")
     try:
         result = llm_client.generate_json(
             messages=[
@@ -93,24 +122,31 @@ def classify_intent(state: AgentState, llm_client: LLMClient) -> dict[str, Any]:
         intent = result.get("intent", "clarification_needed")
         confidence = float(result.get("confidence", 0.5))
         params = result.get("extracted_params", {})
+        params["query"] = query
 
-        logger.info(f"Classified intent: {intent} (confidence={confidence:.2f})")
+        logger.info(f"LLM Classified intent: {intent} (confidence={confidence:.2f})")
 
         is_blocked = intent == "out_of_scope"
         block_reason = "Query is outside the scope of business analytics." if is_blocked else ""
 
-        return {
+        response = {
             "intent": intent,
             "intent_confidence": confidence,
             "extracted_params": params,
             "is_blocked": is_blocked,
             "block_reason": block_reason,
         }
+        
+        if intent == "data_lookup":
+            response["execution_plan"] = [{"step_id": "s1", "tool_id": "nl2sql_query", "params": {"query": query}, "depends_on": []}]
+            response["dag_source"] = "llm_fast_path"
+            
+        return response
 
     except Exception as e:
-        logger.error(f"Intent classification failed: {e}. Falling back to multi_step_analysis.")
+        logger.error(f"Intent classification failed: {e}. Falling back to analytical.")
         return {
-            "intent": "multi_step_analysis",
+            "intent": "analytical",
             "intent_confidence": 0.3,
             "extracted_params": {"query": query},
             "is_blocked": False,

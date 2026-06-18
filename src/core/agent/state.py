@@ -24,13 +24,18 @@ class AgentState(TypedDict):
     block_reason: str
 
     # ── Planning ─────────────────────────────────────────────────────────
-    dag_source: str                        # "pre_compiled" | "dynamic"
+    dag_source: str                        # "pre_compiled" | "dynamic" | "dynamic_retry"
     execution_plan: list[dict[str, Any]]   # ordered DAG steps
 
     # ── Execution ────────────────────────────────────────────────────────
     current_step_index: int
     step_results: dict[str, Any]           # {step_id: result_dict}
     execution_errors: list[str]
+    
+    # ── Validation & Replanning ──────────────────────────────────────────
+    validation_passed: bool
+    validation_notes: str
+    retry_count: int
 
     # ── Output ───────────────────────────────────────────────────────────
     final_response: str

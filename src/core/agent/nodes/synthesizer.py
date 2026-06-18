@@ -1,14 +1,15 @@
 """
 Synthesizer Node — final LLM call to produce a natural language report.
 
-Handles both non-analytical fast responses (greetings, blocks) and
-full analytical synthesis from accumulated step results.
+Handles both non-analytical fast responses (greetings, meta queries, blocks) and
+full analytical synthesis from accumulated DAG step results.
 """
 
 import json
 from typing import Any
 
 from src.core.agent.state import AgentState
+from src.core.agent.registry.capability_registry import get_tool_descriptions_for_prompt
 from src.core.llm import LLMClient
 from src.utils.logger import setup_logger
 
@@ -19,7 +20,7 @@ You are a professional Business Intelligence Assistant.
 The user asked a question. An analytics engine ran calculations and produced raw JSON data.
 Summarize the results clearly in natural language using professional markdown.
 Highlight the most critical business insights and recommendations.
-Do not reference internal technical details like route names or raw JSON keys.
+Do not reference internal technical details like step IDs (e.g. 's1', 's2') or raw JSON keys.
 Speak directly to the business user."""
 
 
@@ -45,6 +46,43 @@ def synthesize_fast_response(state: AgentState, llm_client: LLMClient) -> dict[s
             "route_called": "system_status",
         }
 
+    if intent == "meta_query":
+        tools_str = get_tool_descriptions_for_prompt()
+        query = state.get("user_query", "What can you do?")
+        try:
+            response = llm_client.generate(
+                messages=[
+                    {
+                        "role": "system", 
+                        "content": (
+                            "You are a helpful Business Intelligence AI. The user is asking about your capabilities or data access. "
+                            f"Here is the list of your capabilities:\n\n{tools_str}\n\n"
+                            "Answer the user's specific query concisely and professionally based ONLY on these capabilities."
+                        )
+                    },
+                    {"role": "user", "content": query},
+                ],
+                temperature=0.2,
+                max_tokens=600,
+            )
+            return {
+                "final_response": response,
+                "raw_data": {},
+                "route_called": "meta_query",
+            }
+        except Exception as e:
+            logger.error(f"Meta query synthesis failed: {e}")
+            return {
+                "final_response": (
+                    "Here is an overview of my capabilities and the types of analysis I can perform:\n\n"
+                    f"```text\n{tools_str}\n```\n\n"
+                    "You can ask me to forecast revenue, explain metric drops, simulate business scenarios, "
+                    "or recommend pricing and marketing strategies."
+                ),
+                "raw_data": {},
+                "route_called": "meta_query",
+            }
+
     if state.get("is_blocked"):
         return {
             "final_response": (
@@ -55,7 +93,7 @@ def synthesize_fast_response(state: AgentState, llm_client: LLMClient) -> dict[s
             "route_called": "guardrail_block",
         }
 
-    # clarification_needed
+    # clarification_needed or unknown
     return {
         "final_response": (
             "Could you please provide more details? For example, you can ask me to "
@@ -67,70 +105,78 @@ def synthesize_fast_response(state: AgentState, llm_client: LLMClient) -> dict[s
     }
 
 
-def synthesize_analytical_response(
+def synthesize_analytical_response_stream(
     state: AgentState,
     llm_client: LLMClient,
-) -> dict[str, Any]:
-    """Synthesize a natural language report from analytical results."""
+):
+    """Synthesize a natural language report from analytical results, yielding text stream."""
     raw_data = state.get("raw_data", {})
     route = state.get("route_called", "")
+    notes = state.get("validation_notes", "")
 
-    # If the decision engine already produced an explanation, use it directly
-    if route == "decision_ask" and "explanation" in raw_data:
-        return {"final_response": raw_data["explanation"]}
-
-    # NL2SQL: format tabular results deterministically (fast, no truncation)
-    if route == "nl2sql_query":
-        formatted = _format_nl2sql_response(state.get("user_query", ""), raw_data)
+    # For a 1-step DAG where the only step is nl2sql_query, we can fast-path formatting
+    if route == "nl2sql_query" and len(state.get("execution_plan", [])) == 1:
+        step_id = state["execution_plan"][0]["step_id"]
+        step_data = raw_data.get(step_id, raw_data)
+        
+        formatted = _format_nl2sql_response(state.get("user_query", ""), step_data)
         if formatted is not None:
-            return {"final_response": formatted}
+            if notes and "passed" not in notes.lower():
+                formatted += f"\n\n> **Note:** {notes}"
+            yield formatted
+            return
 
-    # LLM synthesis
+    # If the decision engine already produced an explanation in the final step, use it
+    if route == "decision_ask":
+        for val in raw_data.values():
+            if isinstance(val, dict) and "explanation" in val:
+                resp = val["explanation"]
+                if notes and "passed" not in notes.lower():
+                    resp += f"\n\n> **Note:** {notes}"
+                yield resp
+                return
+
+    # Generic LLM synthesis for single or multi-step results
     try:
-        truncated = json.dumps(raw_data, indent=2, default=str)[:3000]
-        response = llm_client.generate(
+        truncated = json.dumps(raw_data, indent=2, default=str)[:4000]
+        user_msg = f'User Query: "{state["user_query"]}"\n'
+        if notes and "passed" not in notes.lower():
+            user_msg += f'Validation Context (Mention to user if relevant): "{notes}"\n'
+        user_msg += f"Raw Data Results (from DAG execution):\n{truncated}"
+
+        yield from llm_client.generate_stream(
             messages=[
                 {"role": "system", "content": _SYNTHESIS_SYSTEM_PROMPT},
-                {
-                    "role": "user",
-                    "content": (
-                        f'User Query: "{state["user_query"]}"\n'
-                        f'Executed Action: "{route}"\n'
-                        f"Raw Data Result:\n{truncated}"
-                    ),
-                },
+                {"role": "user", "content": user_msg},
             ],
             temperature=0.3,
-            max_tokens=600,
+            max_tokens=800,
+            model_tier="fast", # Use fast model for synthesis
         )
-        return {"final_response": response}
 
     except Exception as e:
         logger.error(f"Synthesis failed: {e}")
-        return {
-            "final_response": (
-                f"Analysis completed successfully. Here are the raw results:\n\n"
-                f"{json.dumps(raw_data, indent=2, default=str)[:2000]}"
-            ),
-        }
+        yield (
+            f"Analysis completed. Here are the raw results:\n\n"
+            f"{json.dumps(raw_data, indent=2, default=str)[:2000]}"
+        )
 
 
 def _format_nl2sql_response(question: str, raw_data: dict[str, Any]) -> str | None:
     """Build a markdown answer directly from NL2SQL tabular results."""
+    if not isinstance(raw_data, dict):
+        return None
+        
     if raw_data.get("error"):
         return (
             "I couldn't retrieve that from the database. "
             f"Reason: {raw_data['error']}\n\n"
-            "Try rephrasing, or specify a product (e.g. P001) and a date range "
-            "within 2025-01-01 to 2025-12-31."
+            "Try rephrasing, or specify a product (e.g. P001) and a date range."
         )
 
     rows = raw_data.get("rows", [])
     if not rows:
-        return (
-            "No matching records were found for that query. "
-            "Note: the available data covers 2025-01-01 to 2025-12-31."
-        )
+        return "No matching records were found for that query."
 
     columns = raw_data.get("columns") or list(rows[0].keys())
 

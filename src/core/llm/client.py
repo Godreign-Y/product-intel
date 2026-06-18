@@ -37,7 +37,10 @@ class LLMClient:
                     api_key=nvidia_key,
                     timeout=30,
                 ),
-                "model": os.getenv("NVIDIA_MODEL", "meta/llama-3.1-70b-instruct"),
+                "tiers": {
+                    "fast": "google/gemma-3n-e2b-it",
+                    "capable": "google/gemma-3n-e4b-it",
+                }
             })
             logger.info("Registered provider: NVIDIA NIM")
 
@@ -49,7 +52,10 @@ class LLMClient:
                 api_key="ollama",
                 timeout=60,
             ),
-            "model": os.getenv("OLLAMA_MODEL", "gemma3:4b"),
+            "tiers": {
+                "fast": os.getenv("OLLAMA_MODEL", "gemma3:4b"),
+                "capable": os.getenv("OLLAMA_MODEL", "gemma3:4b"),
+            }
         })
         logger.info("Registered provider: Ollama")
 
@@ -58,21 +64,53 @@ class LLMClient:
         messages: list[dict[str, str]],
         temperature: float = 0.1,
         max_tokens: int = 1024,
+        model_tier: str = "capable",
     ) -> str:
         """Generate a text completion, trying providers in priority order."""
         for provider in self._providers:
             try:
+                model = provider["tiers"].get(model_tier, provider["tiers"]["capable"])
                 response = provider["client"].chat.completions.create(
-                    model=provider["model"],
+                    model=model,
                     messages=messages,
                     temperature=temperature,
                     max_tokens=max_tokens,
                 )
                 text = response.choices[0].message.content.strip()
-                logger.debug(f"LLM response from {provider['name']} ({len(text)} chars)")
+                logger.debug(f"LLM response from {provider['name']} using {model} ({len(text)} chars)")
                 return text
             except Exception as e:
                 logger.warning(f"Provider {provider['name']} failed: {e}")
+                continue
+
+        raise RuntimeError("All LLM providers failed. Check API keys and connectivity.")
+
+    def generate_stream(
+        self,
+        messages: list[dict[str, str]],
+        temperature: float = 0.1,
+        max_tokens: int = 1024,
+        model_tier: str = "capable",
+    ):
+        """Generate a streaming text completion, yielding text chunks."""
+        for provider in self._providers:
+            try:
+                model = provider["tiers"].get(model_tier, provider["tiers"]["capable"])
+                response = provider["client"].chat.completions.create(
+                    model=model,
+                    messages=messages,
+                    temperature=temperature,
+                    max_tokens=max_tokens,
+                    stream=True,
+                )
+                logger.debug(f"LLM streaming response from {provider['name']} using {model}")
+                for chunk in response:
+                    content = chunk.choices[0].delta.content
+                    if content:
+                        yield content
+                return
+            except Exception as e:
+                logger.warning(f"Provider {provider['name']} failed streaming: {e}")
                 continue
 
         raise RuntimeError("All LLM providers failed. Check API keys and connectivity.")
@@ -82,9 +120,10 @@ class LLMClient:
         messages: list[dict[str, str]],
         temperature: float = 0.1,
         max_tokens: int = 1024,
+        model_tier: str = "capable",
     ) -> dict[str, Any]:
         """Generate and parse a JSON response from the LLM."""
-        raw = self.generate(messages, temperature, max_tokens)
+        raw = self.generate(messages, temperature, max_tokens, model_tier)
         return self._parse_json(raw)
 
     @staticmethod

@@ -13,7 +13,7 @@ export default function WorkspacePage() {
   ]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  const { mutate, isPending } = useWorkspace();
+  const [isStreaming, setIsStreaming] = useState(false);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -21,35 +21,86 @@ export default function WorkspacePage() {
 
   useEffect(() => {
     scrollToBottom();
-  }, [messages, isPending]);
+  }, [messages, isStreaming]);
 
-  const handleSendMessage = (e: React.FormEvent) => {
+  const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!chatInput.trim() || isPending) return;
+    if (!chatInput.trim() || isStreaming) return;
 
     const userMsg = chatInput;
     setMessages(prev => [...prev, { sender: 'user', text: userMsg }]);
     setChatInput('');
+    setIsStreaming(true);
 
-    mutate({
-      query: userMsg,
-      context: {
-        product_id: selectedProduct || null,
-        start_date: startDate || null,
-        end_date: endDate || null
+    // Add empty assistant message placeholder
+    setMessages(prev => [...prev, { sender: 'assistant', text: '' }]);
+
+    try {
+      const response = await fetch('/api/v1/agent/query', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          query: userMsg,
+          context: {
+            product_id: selectedProduct || null,
+            start_date: startDate || null,
+            end_date: endDate || null
+          }
+        })
+      });
+
+      if (!response.ok) throw new Error('Network error');
+
+      const reader = response.body?.getReader();
+      const decoder = new TextDecoder();
+      
+      if (reader) {
+        let currentText = '';
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          
+          const chunk = decoder.decode(value, { stream: true });
+          const lines = chunk.split('\n\n');
+          
+          for (const line of lines) {
+            if (line.startsWith('data: ')) {
+              const dataStr = line.slice(6).trim();
+              if (dataStr === '[DONE]') continue;
+              if (!dataStr) continue;
+              
+              try {
+                const data = JSON.parse(dataStr);
+                if (data.type === 'metadata') {
+                  setMessages(prev => {
+                    const newMsgs = [...prev];
+                    newMsgs[newMsgs.length - 1] = { ...newMsgs[newMsgs.length - 1], meta: { route: data.route_called } };
+                    return newMsgs;
+                  });
+                } else if (data.type === 'text') {
+                  currentText += data.content;
+                  setMessages(prev => {
+                    const newMsgs = [...prev];
+                    newMsgs[newMsgs.length - 1] = { ...newMsgs[newMsgs.length - 1], text: currentText };
+                    return newMsgs;
+                  });
+                }
+              } catch (err) {
+                // Ignore incomplete JSON chunks from stream buffering
+              }
+            }
+          }
+        }
       }
-    }, {
-      onSuccess: (data) => {
-        setMessages(prev => [...prev, { 
-          sender: 'assistant', 
-          text: data.response,
-          meta: { route: data.routed_to }
-        }]);
-      },
-      onError: () => {
-        setMessages(prev => [...prev, { sender: 'assistant', text: "Error: Could not connect to the Decision Intelligence Engine." }]);
-      }
-    });
+    } catch (error) {
+      setMessages(prev => {
+        const newMsgs = [...prev];
+        newMsgs[newMsgs.length - 1] = { sender: 'assistant', text: "Error: Could not connect to the Decision Intelligence Engine." };
+        return newMsgs;
+      });
+    } finally {
+      setIsStreaming(false);
+    }
   };
 
   return (
@@ -77,10 +128,10 @@ export default function WorkspacePage() {
               )}
             </div>
           ))}
-          {isPending && (
-            <div className="chat-bubble assistant" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          {isStreaming && (
+            <div className="chat-bubble assistant" style={{ display: 'flex', alignItems: 'center', gap: '8px', opacity: 0.7 }}>
               <RefreshCw size={14} className="spin" />
-              Generating executive summaries and evaluating calculations...
+              Thinking...
             </div>
           )}
           <div ref={messagesEndRef} />
@@ -93,12 +144,12 @@ export default function WorkspacePage() {
             placeholder="Ask e.g.: 'Why did revenue drop for P001 on 2025-12-31?'"
             value={chatInput}
             onChange={(e) => setChatInput(e.target.value)}
-            disabled={isPending}
+            disabled={isStreaming}
           />
           <button 
             type="submit" 
             className="chat-send-btn"
-            disabled={isPending || !chatInput.trim()}
+            disabled={isStreaming || !chatInput.trim()}
           >
             Send
           </button>

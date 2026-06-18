@@ -131,7 +131,7 @@ class PredictionExplainer:
             pred_value = row_idx[target_metric_cap].values[0]
             
         # Compute SHAP values
-        shap_output = explainer(X_explain)
+        shap_output = explainer(X_explain, check_additivity=False)
         
         # SHAP returns an object. For a single row, grab values, base_values, and data
         # Handle shape differences between SHAP versions
@@ -237,7 +237,7 @@ class PredictionExplainer:
             return sorted(global_imp, key=lambda x: x["importance_value"], reverse=True)[:15]
             
         # Compute SHAP values for the background sample
-        shap_values = explainer.shap_values(bg_sample)
+        shap_values = explainer.shap_values(bg_sample, check_additivity=False)
         
         if isinstance(shap_values, list):
             shap_values = shap_values[0]

@@ -1,7 +1,12 @@
 """
 LangGraph StateGraph — compiles and runs the agent pipeline.
 
-Flow: Intent Classifier → (Fast Response | DAG Planner → DAG Executor → Synthesizer)
+Flow:
+Intent Classifier → (Fast Response | DAG Planner | DAG Executor)
+DAG Planner → DAG Executor
+DAG Executor → Validator
+Validator → (Synthesizer | Replanner)
+Replanner → DAG Executor
 """
 
 from typing import Any
@@ -12,10 +17,9 @@ from src.core.agent.state import AgentState
 from src.core.agent.nodes.intent_classifier import classify_intent, is_non_analytical
 from src.core.agent.nodes.dag_planner import plan_dag
 from src.core.agent.nodes.dag_executor import execute_dag
-from src.core.agent.nodes.synthesizer import (
-    synthesize_fast_response,
-    synthesize_analytical_response,
-)
+from src.core.agent.nodes.validator import validate_results
+from src.core.agent.nodes.replanner import replan_dag
+from src.core.agent.nodes.synthesizer import synthesize_fast_response
 from src.core.llm import LLMClient
 from src.utils.logger import setup_logger
 
@@ -45,7 +49,8 @@ def _build_graph() -> Any:
     graph.add_node("fast_response", _node_fast_response)
     graph.add_node("dag_planner", _node_plan_dag)
     graph.add_node("dag_executor", _node_execute_dag)
-    graph.add_node("synthesizer", _node_synthesize)
+    graph.add_node("validator", _node_validate)
+    graph.add_node("replanner", _node_replan)
 
     # ── Set entry point ──────────────────────────────────────────────
     graph.set_entry_point("intent_classifier")
@@ -56,6 +61,7 @@ def _build_graph() -> Any:
         _route_after_classification,
         {
             "fast_response": "fast_response",
+            "dag_executor": "dag_executor",
             "dag_planner": "dag_planner",
         },
     )
@@ -63,8 +69,26 @@ def _build_graph() -> Any:
     # ── Linear edges ─────────────────────────────────────────────────
     graph.add_edge("fast_response", END)
     graph.add_edge("dag_planner", "dag_executor")
-    graph.add_edge("dag_executor", "synthesizer")
-    graph.add_edge("synthesizer", END)
+    graph.add_edge("dag_executor", "validator")
+
+    # ── Conditional routing from validator ───────────────────────────
+    graph.add_conditional_edges(
+        "validator",
+        _route_after_validation,
+        {
+            "end": END,
+            "replanner": "replanner",
+        },
+    )
+
+    graph.add_conditional_edges(
+        "replanner",
+        _route_after_replan,
+        {
+            "end": END,
+            "dag_executor": "dag_executor",
+        },
+    )
 
     return graph.compile()
 
@@ -84,6 +108,7 @@ def _node_fast_response(state: AgentState) -> dict[str, Any]:
 
 def _node_plan_dag(state: AgentState) -> dict[str, Any]:
     """Node wrapper for DAG planning."""
+    # Pass model_tier capable for DAG planner
     return plan_dag(state, _llm_client)
 
 
@@ -92,19 +117,40 @@ def _node_execute_dag(state: AgentState) -> dict[str, Any]:
     return execute_dag(state, _engines)
 
 
-def _node_synthesize(state: AgentState) -> dict[str, Any]:
-    """Node wrapper for report synthesis."""
-    return synthesize_analytical_response(state, _llm_client)
+def _node_validate(state: AgentState) -> dict[str, Any]:
+    """Node wrapper for result validation."""
+    return validate_results(state)
+
+
+def _node_replan(state: AgentState) -> dict[str, Any]:
+    """Node wrapper for DAG re-planning."""
+    return replan_dag(state, _llm_client)
 
 
 # ── Routing functions ────────────────────────────────────────────────────
 
 
 def _route_after_classification(state: AgentState) -> str:
-    """Route to fast_response or dag_planner based on intent."""
+    """Route to fast_response, dag_planner, or directly to dag_executor."""
     if is_non_analytical(state):
         return "fast_response"
+    if state["intent"] == "data_lookup" and "execution_plan" in state:
+        return "dag_executor"
     return "dag_planner"
+
+
+def _route_after_validation(state: AgentState) -> str:
+    """Route to END or replanner based on validation results."""
+    if state.get("validation_passed", True):
+        return "end"
+    return "replanner"
+
+
+def _route_after_replan(state: AgentState) -> str:
+    """Route to executor only when the replanner produced a retry plan."""
+    if state.get("validation_passed", False):
+        return "end"
+    return "dag_executor"
 
 
 # ── Public API ───────────────────────────────────────────────────────────
@@ -127,6 +173,9 @@ def run_agent_graph(query: str) -> dict[str, Any]:
         "current_step_index": 0,
         "step_results": {},
         "execution_errors": [],
+        "validation_passed": True,
+        "validation_notes": "",
+        "retry_count": 0,
         "final_response": "",
         "raw_data": {},
         "route_called": "",

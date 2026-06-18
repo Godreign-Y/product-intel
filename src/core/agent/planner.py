@@ -498,23 +498,39 @@ class LLMPlannerAgent:
                 f"(Note: Conversation synthesis failed due to: {str(e)})"
             )
 
-    def process_query(self, query: str) -> Dict[str, Any]:
+    def process_query_stream(self, query: str):
         """
-        Performs the complete agent workflow via LangGraph pipeline.
-
-        Falls back to the legacy flow if the graph is not initialized.
+        Performs the complete agent workflow via LangGraph pipeline, yielding Server-Sent Events.
         """
         # ── Try LangGraph pipeline first ─────────────────────────────
         try:
-            from src.core.agent.graph import run_agent_graph, _compiled_graph
+            from src.core.agent.graph import run_agent_graph, _compiled_graph, _llm_client
+            from src.core.agent.nodes.synthesizer import synthesize_analytical_response_stream
+            
             if _compiled_graph is not None:
+                yield f"data: {json.dumps({'type': 'status', 'content': 'Analyzing request...'})}\n\n"
                 result = run_agent_graph(query)
-                return {
+                
+                # First chunk: Metadata
+                meta_chunk = {
+                    "type": "metadata",
                     "query": result.get("user_query", query),
                     "route_called": result.get("route_called", ""),
-                    "raw_data": result.get("raw_data", {}),
-                    "response": result.get("final_response", ""),
+                    "raw_data": result.get("raw_data", {})
                 }
+                yield f"data: {json.dumps(meta_chunk)}\n\n"
+                
+                if result.get("final_response"):
+                    # Fast response was generated
+                    yield f"data: {json.dumps({'type': 'text', 'content': result['final_response']})}\n\n"
+                else:
+                    # Synthesize analytical response
+                    for chunk in synthesize_analytical_response_stream(result, _llm_client):
+                        yield f"data: {json.dumps({'type': 'text', 'content': chunk})}\n\n"
+                        
+                yield "data: [DONE]\n\n"
+                return
+                
         except Exception as e:
             logger.warning(f"LangGraph pipeline failed, falling back to legacy: {e}")
 
@@ -526,14 +542,18 @@ class LLMPlannerAgent:
             params["query"] = query
 
         raw_data = self.execute_route(route, params)
-        natural_language_answer = self.synthesize_answer(query, route, raw_data)
-
-        return {
+        
+        meta_chunk = {
+            "type": "metadata",
             "query": query,
             "route_called": route,
-            "raw_data": raw_data,
-            "response": natural_language_answer,
+            "raw_data": raw_data
         }
+        yield f"data: {json.dumps(meta_chunk)}\n\n"
+        
+        natural_language_answer = self.synthesize_answer(query, route, raw_data)
+        yield f"data: {json.dumps({'type': 'text', 'content': natural_language_answer})}\n\n"
+        yield "data: [DONE]\n\n"
 
     def _fallback_rule_based_router(self, query: str) -> Dict[str, Any]:
         """
