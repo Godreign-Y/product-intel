@@ -115,7 +115,10 @@ def get_historical_df_from_db(
                 if "id" in df.columns:
                     df = df.drop(columns=["id"])
                 df = df.sort_values(by=["product_id", "date"]).reset_index(drop=True)
-            return df
+                return df
+            else:
+                logger.warning("Database query returned empty DataFrame. Falling back to CSV...")
+                return get_historical_df_from_csv(start_date, end_date, product_id, category)
         except Exception as e:
             logger.error(f"Database dynamic query failed: {e}. Falling back to CSV...")
             return get_historical_df_from_csv(start_date, end_date, product_id, category)
@@ -149,7 +152,10 @@ def get_historical_df_from_db(
                 if "id" in df.columns:
                     df = df.drop(columns=["id"])
                 df = df.sort_values(by=["product_id", "date"]).reset_index(drop=True)
-            return df
+                return df
+            else:
+                logger.info("SQLite query returned empty DataFrame. Using CSV...")
+                return get_historical_df_from_csv(start_date, end_date, product_id, category)
         except Exception as e:
             logger.info(f"SQLite/DB query failed or SQLite not initialized: {e}. Using CSV...")
             return get_historical_df_from_csv(start_date, end_date, product_id, category)
