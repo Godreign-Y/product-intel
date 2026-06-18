@@ -10,6 +10,7 @@ htmlcov/
 # Environments
 .env
 .env.local
+.venv/
 venv/
 myenv/
 env/
@@ -35,3 +36,8 @@ Thumbs.db
 frontend/node_modules/
 frontend/dist/
 frontend/dist-ssr/
+__pycache__/*
+new/*
+
+src/core/analytics/__pycache__/*
+src/api/__pycache__/
