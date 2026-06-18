@@ -132,6 +132,9 @@ def test_optimization_endpoint(client):
         "max_marketing_budget": 200.0
     }
     response = client.post("/api/v1/optimization/maximize", json=payload)
+    print("\nDEBUG test_optimization_endpoint:")
+    print("STATUS CODE:", response.status_code)
+    print("JSON:", response.json())
     assert response.status_code == 200
     
     data = response.json()
