@@ -1,12 +1,11 @@
 import os
 import sys
 import traceback
-from sqlalchemy.orm import Session
 
 # Add the project root to sys.path
 sys.path.append(r"c:\Users\Relanto\OneDrive - Relanto\new\sprint2_product_intel")
 
-from src.core.history.storage.database import SessionLocal, engine
+from src.core.history.storage.database import SessionLocal
 from src.core.history.manager import HistoryManager
 
 def test():
@@ -14,9 +13,11 @@ def test():
     print("Database dialect:", db.bind.dialect.name)
     try:
         manager = HistoryManager(db)
-        print("Running semantic_search...")
-        results = manager.semantic_search("discounts", limit=5)
-        print("Success! Found results:", len(results))
+        print("Testing get_trend_direction dynamically...")
+        dir_rev = manager.get_trend_direction("P001", "revenue")
+        dir_ord = manager.get_trend_direction("P001", "orders")
+        print(f"P001 Revenue Trend: {dir_rev}")
+        print(f"P001 Orders Trend: {dir_ord}")
     except Exception as e:
         print("Failed with exception:")
         traceback.print_exc()

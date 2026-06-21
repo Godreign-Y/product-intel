@@ -10,7 +10,7 @@ context:
   # Number of recent daily snapshots to average for stable KPI baselines
   rolling_window_days: 30
   # Threshold (as fraction) for classifying a trend as "increasing" or "decreasing"
-  trend_threshold_pct: 0.02
+  trend_threshold_pct: 0.05
 
 # --- Evidence Retriever ---
 evidence:

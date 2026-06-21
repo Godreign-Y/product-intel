@@ -29,7 +29,14 @@ class SensitivityEngine:
             from src.core.history.manager import HistoryManager
             db = SessionLocal()
             try:
-                hm = HistoryManager(db)
+                encoder = None
+                try:
+                    from src.api.dependencies import AppState
+                    encoder = AppState.history_encoder
+                except ImportError:
+                    pass
+                
+                hm = HistoryManager(db, encoder=encoder)
                 driver_mapping = {
                     "discount": ("discount_pct", "conversion_rate"),
                     "price": ("avg_selling_price", "orders"),

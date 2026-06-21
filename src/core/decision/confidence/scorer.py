@@ -1,6 +1,9 @@
 from typing import Dict, Any, List, Optional
 
 from src.core.decision.config_loader import load_decision_config
+from src.utils.logger import setup_logger
+
+logger = setup_logger("confidence_scorer")
 
 class ConfidenceScorer:
     def __init__(self, weights: Optional[Dict[str, float]] = None):
@@ -14,17 +17,23 @@ class ConfidenceScorer:
             "forecast": 0.25,
             "causal": 0.20
         })
+        logger.info(f"Initialized ConfidenceScorer with weights: {self.weights}")
 
     def compute_confidence(
         self, 
         validation_results: Dict[str, Any], 
         historical_evidence: List[Dict[str, Any]],
         title: str,
-        product_df_len: int = 0
+        product_df_len: int = 0,
+        driver_keyword: Optional[str] = None
     ) -> Dict[str, Any]:
         """
         Calculates the overall confidence score using a normalized 0-100 composite scoring system.
         """
+        from src.core.decision.direction_utils import parse_hypothesis_direction
+
+        logger.info(f"compute_confidence: Scoring confidence for hypothesis='{title}' with data coverage of {product_df_len} days.")
+        
         # 1. Historical Agreement (Scaled 0-100)
         hist_score = 50.0
         if historical_evidence:
@@ -33,6 +42,7 @@ class ConfidenceScorer:
                 hist_score = 90.0
             else:
                 hist_score = 60.0
+        logger.debug(f"compute_confidence: Historical score={hist_score} (evidence_count={len(historical_evidence)})")
                 
         # 2. Correlation Score (Scaled 0-100)
         corr = validation_results.get("correlation", {})
@@ -40,37 +50,53 @@ class ConfidenceScorer:
         spearman = abs(corr.get("spearman", 0.0))
         corr_score = round(float((pearson + spearman) / 2.0 * 100.0), 2)
         corr_score = max(10.0, min(100.0, corr_score))
+        logger.debug(f"compute_confidence: Correlation score={corr_score} (Pearson={pearson:.4f}, Spearman={spearman:.4f})")
 
         # 3. Sensitivity Score / Effect Size (Scaled 0-100)
         sens = validation_results.get("sensitivity", {})
         elasticity = abs(sens.get("elasticity_score", 0.0))
         sens_score = round(min(100.0, elasticity * 2.0 * 100.0), 2)
         sens_score = max(10.0, sens_score)
+        logger.debug(f"compute_confidence: Sensitivity score={sens_score} (Elasticity={elasticity:.4f})")
 
         # 4. Forecast Simulation Score (Scaled 0-100)
         f_sim = validation_results.get("forecast_simulation", {})
         delta_pct = f_sim.get("delta_pct", 0.0)
         
-        is_pos_hypo = "increase" in title.lower() or "improve" in title.lower() or "rise" in title.lower() or "up" in title.lower()
-        is_neg_hypo = "decrease" in title.lower() or "drop" in title.lower() or "lower" in title.lower() or "down" in title.lower() or "reduce" in title.lower()
+        if not driver_keyword:
+            title_lower = title.lower()
+            if "shipping" in title_lower or "fee" in title_lower:
+                driver_keyword = "shipping"
+            elif "price" in title_lower or "pricing" in title_lower:
+                driver_keyword = "price"
+            elif "marketing" in title_lower or "spend" in title_lower:
+                driver_keyword = "marketing"
+            else:
+                driver_keyword = "discount"
+
+        hypo_dir = parse_hypothesis_direction(title, driver_keyword)
         
         aligned = True
-        if is_pos_hypo and delta_pct < 0:
+        if hypo_dir == "neutral":
+            fore_score = 50.0  # moderate default score to penalize ambiguous phrasing
+        elif hypo_dir == "positive" and delta_pct < 0:
             aligned = False
-        elif is_neg_hypo and delta_pct > 0:
+            fore_score = 10.0  # penalty for contradiction
+        elif hypo_dir == "negative" and delta_pct > 0:
             aligned = False
-            
-        if aligned:
+            fore_score = 10.0  # penalty for contradiction
+        else:
             fore_score = round(min(100.0, abs(delta_pct) / 2.0 * 100.0), 2)
             fore_score = max(20.0, fore_score)
-        else:
-            fore_score = 10.0  # penalty for contradiction
+            
+        logger.debug(f"compute_confidence: Forecast score={fore_score} (delta_pct={delta_pct}%, hypo_dir={hypo_dir}, aligned={aligned})")
 
         # 5. Causal Score / Statistical Confidence (Scaled 0-100)
         causal = validation_results.get("causal", {})
         p_val = causal.get("p_value", 1.0)
         causal_score = round(float((1.0 - p_val) * 100.0), 2)
         causal_score = max(10.0, causal_score)
+        logger.debug(f"compute_confidence: Causal score={causal_score} (p_value={p_val:.4f})")
 
         # Calculate weighted average of normalized 0-100 scores
         overall_100 = (
@@ -83,11 +109,13 @@ class ConfidenceScorer:
         
         # Scale back to 0.0 - 1.0 standard decimal for API and Database compatibilities
         overall = round(min(0.99, max(0.10, overall_100 / 100.0)), 4)
+        logger.info(f"compute_confidence: Weighted sum={overall_100:.2f} -> overall_confidence={overall}")
 
         # Compute data quality factor (0.0 to 1.0)
         data_quality_factor = 0.0
         if product_df_len > 0:
             data_quality_factor = round(min(1.0, product_df_len / 365.0), 4)
+        logger.debug(f"compute_confidence: data_quality_factor={data_quality_factor}")
 
         # Build dynamic reasoning identifying the dominant signal
         signal_contributions = {
@@ -118,6 +146,7 @@ class ConfidenceScorer:
         elif product_df_len > 0:
             reasoning += f"Data coverage is limited ({product_df_len} days); confidence may improve with more history."
 
+        logger.info(f"compute_confidence: Finished scoring confidence. Reasoning: '{reasoning.strip()}'")
         return {
             "overall_confidence": overall,
             "data_quality_factor": data_quality_factor,
@@ -130,4 +159,3 @@ class ConfidenceScorer:
             },
             "reasoning": reasoning.strip()
         }
-

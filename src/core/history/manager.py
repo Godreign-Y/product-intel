@@ -332,9 +332,30 @@ class HistoryManager:
 
     def get_trend_direction(self, product_id: str, kpi: str) -> str:
         """
-        Wiped as time-series pattern mining is disabled. Returns default 'stable'.
+        Retrieves the trend direction (increasing, decreasing, or stable) from the pre-computed Pattern table.
         """
-        return "stable"
+        try:
+            # Query the latest pattern record for this product and KPI
+            p = self.db.query(Pattern).filter(
+                Pattern.pattern_type == "trend",
+                Pattern.product_id == product_id,
+                Pattern.kpi == kpi
+            ).order_by(Pattern.date.desc()).first()
+            
+            if p and p.value is not None:
+                # Load configuration threshold (defaulting to 0.02 if not present)
+                from src.core.decision.config_loader import load_decision_config
+                cfg = load_decision_config()
+                threshold = cfg.get("context", {}).get("trend_threshold_pct", 0.02)
+                
+                if p.value > threshold:
+                    return "increasing"
+                elif p.value < -threshold:
+                    return "decreasing"
+            return "stable"
+        except Exception as e:
+            logger.error(f"Failed to calculate trend direction for {product_id}/{kpi}: {e}")
+            return "stable"
 
     def get_elasticity_profile(self, driver: str, kpi: str, product_id: Optional[str] = None) -> Dict[str, Any]:
         """
@@ -648,3 +669,122 @@ class HistoryManager:
         self.db.add(db_emb)
         self.db.commit()
         return db_exp
+
+    def rebuild_knowledge_base(self, force: bool = False) -> Dict[str, int]:
+        """
+        Rebuilds the knowledge_base table by aggregating and synthesizing rules
+        directly from stored Experiments in Neon DB.
+        Bypasses vector embeddings/LLM calls to avoid cold starts and API dependencies.
+        """
+        if not force:
+            existing_count = self.db.query(KnowledgeBase).count()
+            if existing_count > 0:
+                logger.info(f"Knowledge Base already populated with {existing_count} records. Skipping rebuild.")
+                summary = {}
+                existing_rules = self.db.query(KnowledgeBase.pattern_type).all()
+                for r in existing_rules:
+                    summary[r[0]] = 0
+                return summary
+
+        logger.info("Rebuilding knowledge base from stored database experiments...")
+        
+        # 1. Clear existing table
+        self._clear_table_via_neon(KnowledgeBase.__tablename__)
+        
+        # 2. Retrieve categories dynamically
+        categories = [c[0] for c in self.db.query(Experiment.category).distinct().all() if c[0]]
+        logger.info(f"Retrieved categories dynamically: {categories}")
+        
+        # 3. Define target drivers and aliases
+        drivers = [
+            "discount_pct", "shipping_fee", "avg_selling_price", "marketing_spend",
+            "sales_channel_mix", "campaign_mix", "acquisition_mix", "inventory_available"
+        ]
+        
+        aliases = {
+            "discount": "discount_pct",
+            "shipping": "shipping_fee",
+            "price": "avg_selling_price",
+            "marketing": "marketing_spend",
+            "sales_channel": "sales_channel_mix",
+            "campaign": "campaign_mix",
+            "acquisition": "acquisition_mix",
+            "inventory": "inventory_available"
+        }
+        
+        all_topics = drivers + list(aliases.keys()) + categories
+        summary = {}
+        
+        for topic in all_topics:
+            mapped_driver = None
+            
+            # Setup queries
+            if topic in categories:
+                query = self.db.query(Experiment).filter(Experiment.category == topic)
+            elif topic in drivers:
+                mapped_driver = topic
+                query = self.db.query(Experiment).filter(Experiment.driver == topic)
+            elif topic in aliases:
+                mapped_driver = aliases[topic]
+                query = self.db.query(Experiment).filter(
+                    (Experiment.driver == mapped_driver) |
+                    (Experiment.change_summary.ilike(f"%{topic}%")) |
+                    (Experiment.notes.ilike(f"%{topic}%"))
+                )
+                
+            total_count = query.count()
+            if total_count == 0:
+                logger.warning(f"No experiments found for topic '{topic}'. Skipping.")
+                continue
+                
+            # Filter wins and losses
+            wins = query.filter(Experiment.outcome == "positive").all()
+            losses = query.filter(Experiment.outcome == "negative").all()
+            
+            success_rate = (len(wins) / total_count * 100.0) if total_count > 0 else 0.0
+            
+            # Deduplicate successes and failures text lists
+            successes = []
+            for w in wins:
+                summary_text = (w.change_summary or w.notes or "").strip()
+                if summary_text and summary_text not in successes:
+                    successes.append(summary_text)
+                    if len(successes) >= 3:
+                        break
+            if not successes:
+                successes = ["No consistent successes recorded."]
+                
+            failures = []
+            for l in losses:
+                summary_text = (l.change_summary or l.notes or "").strip()
+                if summary_text and summary_text not in failures:
+                    failures.append(summary_text)
+                    if len(failures) >= 3:
+                        break
+            if not failures:
+                failures = ["No major failures recorded."]
+                
+            confidence_score = min(1.0, round(float(0.5 + (success_rate / 200.0)), 2))
+            
+            kb_entry = KnowledgeBase(
+                pattern_type=topic,
+                query_context=f"Direct database aggregation for topic '{topic}'",
+                synthesized_rules={
+                    "learnings": f"Direct database analysis of {total_count} historical experiments matching topic '{topic}'.",
+                    "frequent_failures": failures,
+                    "successful_strategies": successes,
+                    "success_rate_pct": round(success_rate, 2)
+                },
+                confidence_score=confidence_score,
+                driver=mapped_driver or "generic",
+                segment="Generic",
+                season="Generic",
+                outcome_score=round(float(success_rate), 2),
+                confidence=confidence_score
+            )
+            self.db.add(kb_entry)
+            summary[topic] = total_count
+            
+        self.db.commit()
+        logger.info(f"Successfully rebuilt Knowledge Base with {len(summary)} rules.")
+        return summary

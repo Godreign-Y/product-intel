@@ -1,6 +1,9 @@
 from typing import Dict, Any, List, Optional
 
 from src.core.decision.config_loader import load_decision_config
+from src.utils.logger import setup_logger
+
+logger = setup_logger("recommendation_engine")
 
 class RecommendationEngine:
     def __init__(self):
@@ -9,6 +12,7 @@ class RecommendationEngine:
         conf_thresh = cfg.get("confidence_thresholds", {})
         self.rollback_strategies = rec_cfg.get("rollback_strategies", {})
         self.immediate_rollout_threshold = conf_thresh.get("immediate_rollout", 0.75)
+        logger.info(f"Initialized RecommendationEngine: immediate_rollout_threshold={self.immediate_rollout_threshold}")
 
     def generate_recommendations(
         self, 
@@ -21,6 +25,7 @@ class RecommendationEngine:
         Now integrates causal estimates to output quantified revenue/profit shifts, historical success rates,
         confidence percentages, and risk categories.
         """
+        logger.info(f"generate_recommendations: Translating {len(ranked_hypotheses)} ranked hypotheses into tactical recommendations. Context revenue={context_revenue}")
         recommendations = []
         for item in ranked_hypotheses:
             hypo = item["hypothesis"]
@@ -50,6 +55,8 @@ class RecommendationEngine:
             elif driver == "discount_pct":
                 action_type = "PROMOTIONAL_CAMPAIGN"
                 
+            logger.debug(f"generate_recommendations: Mapping '{hyp_id}' -> driver={driver}, action_type={action_type}")
+
             # Formulate text
             rec_text = f"Action recommendation for {title}: "
             if impact_pct > 0:
@@ -63,6 +70,7 @@ class RecommendationEngine:
             # Check if experiment is required (confidence is low)
             overall_conf = conf_score.get("overall_confidence", 0.5)
             needs_ab_test = overall_conf < self.immediate_rollout_threshold
+            logger.debug(f"generate_recommendations: overall_confidence={overall_conf:.4f} vs threshold={self.immediate_rollout_threshold} -> needs_ab_test={needs_ab_test}")
             
             # Calculate estimated ROI proxy
             expected_delta = val_res.get("forecast_simulation", {}).get("expected_delta", 0.0)
@@ -71,9 +79,10 @@ class RecommendationEngine:
             # Normalize ROI to dollar terms for non-revenue KPIs
             primary_kpi = hypo["affected_kpis"][0] if hypo.get("affected_kpis") else ""
             if "conversion" in primary_kpi and context_revenue > 0:
-                estimated_roi = round(abs(delta_pct / 100.0) * context_revenue, 2)
+                estimated_roi = round((delta_pct / 100.0) * context_revenue, 2)
             else:
-                estimated_roi = round(float(abs(expected_delta)), 2)
+                estimated_roi = round(float(expected_delta), 2)
+            logger.debug(f"generate_recommendations: Calculated ROI proxy={estimated_roi} (KPI={primary_kpi}, expected_delta={expected_delta})")
 
             # Calculate expected revenue and profit shifts
             expected_revenue_shift = 0.0
@@ -107,6 +116,7 @@ class RecommendationEngine:
             success_rate = 75.0
             if db:
                 try:
+                    logger.debug(f"generate_recommendations: Querying historical experiment success rate for driver={driver}")
                     from src.core.history.storage.models import Experiment
                     past_exps = db.query(Experiment).filter(Experiment.driver == driver).all()
                     if past_exps:
@@ -118,17 +128,21 @@ class RecommendationEngine:
                         if past_exps_type:
                             positives = sum(1 for e in past_exps_type if e.outcome == "positive")
                             success_rate = round((positives / len(past_exps_type)) * 100.0, 2)
-                except Exception:
+                except Exception as e:
+                    logger.warning(f"generate_recommendations: Failed historical success rate query: {e}")
                     pass
+            logger.debug(f"generate_recommendations: Determined historical success rate={success_rate}%")
 
             # Determine risk category
+            from src.core.decision.recommendation.risk_classifier import risk_classifier
             volatility_val = "HIGH" if abs(delta_pct) > 15 else "MEDIUM" if abs(delta_pct) > 5 else "LOW"
-            if volatility_val == "HIGH" or overall_conf < 0.60:
-                risk_category = "High"
-            elif volatility_val == "MEDIUM" or overall_conf < 0.75:
-                risk_category = "Medium"
-            else:
-                risk_category = "Low"
+            reversibility_val = "EASY" if action_type == "PROMOTIONAL_CAMPAIGN" else "MODERATE"
+            risk_category = risk_classifier.classify(
+                confidence=overall_conf,
+                volatility=volatility_val,
+                reversibility=reversibility_val
+            )
+            logger.info(f"generate_recommendations: Risk Category classification - Volatility: {volatility_val} (impact_pct={delta_pct:.2f}%), Confidence: {overall_conf:.4f} -> Resulting Risk Category: {risk_category} for hypothesis '{hyp_id}'")
 
             # Rich, action-specific rollback strategy from config
             rollback = self.rollback_strategies.get(
@@ -151,6 +165,7 @@ class RecommendationEngine:
                 "risk_category": risk_category
             }
 
+            logger.info(f"generate_recommendations: Created recommendation for '{hyp_id}' (Priority={priority}, Needs A/B={needs_ab_test})")
             recommendations.append({
                 "hypothesis_id": hyp_id,
                 "recommendation_text": rec_text,
@@ -173,4 +188,5 @@ class RecommendationEngine:
                 "confidence_score": overall_conf
             })
             
+        logger.info(f"generate_recommendations: Successfully formulated {len(recommendations)} tactical recommendations.")
         return recommendations

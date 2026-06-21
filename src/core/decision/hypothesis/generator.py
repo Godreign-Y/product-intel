@@ -9,6 +9,107 @@ from src.utils.logger import setup_logger
 
 logger = setup_logger("hypothesis_generator")
 
+# Mappings for driver variable normalization
+DRIVER_ALIASES = {
+    "discount": "discount_pct",
+    "discount %": "discount_pct",
+    "discount percentage": "discount_pct",
+    "discounts": "discount_pct",
+    "discount_pct": "discount_pct",
+    "promo": "discount_pct",
+    "promotion": "discount_pct",
+    
+    "price": "avg_selling_price",
+    "pricing": "avg_selling_price",
+    "selling price": "avg_selling_price",
+    "average price": "avg_selling_price",
+    "avg price": "avg_selling_price",
+    "avg_selling_price": "avg_selling_price",
+    
+    "shipping": "shipping_fee",
+    "shipping fee": "shipping_fee",
+    "fulfillment fee": "shipping_fee",
+    "delivery fee": "shipping_fee",
+    "shipping_fee": "shipping_fee",
+    
+    "marketing": "marketing_spend",
+    "marketing spend": "marketing_spend",
+    "ad spend": "marketing_spend",
+    "ads": "marketing_spend",
+    "spend": "marketing_spend",
+    "advertising": "marketing_spend",
+    "marketing_spend": "marketing_spend",
+
+    "sales_channel_mix": "sales_channel_mix",
+    "sales_channel": "sales_channel_mix",
+    "sales channel": "sales_channel_mix",
+    "channel": "sales_channel_mix",
+    
+    "campaign_mix": "campaign_mix",
+    "campaign": "campaign_mix",
+    
+    "acquisition_mix": "acquisition_mix",
+    "acquisition": "acquisition_mix",
+    
+    "inventory_available": "inventory_available",
+    "inventory": "inventory_available",
+    "stock": "inventory_available"
+}
+
+KPI_ALIASES = {
+    "revenue": "revenue",
+    "total_revenue": "revenue",
+    "total revenue": "revenue",
+    
+    "profit": "profit",
+    "total_profit": "profit",
+    "total profit": "profit",
+    "margin": "profit",
+    
+    "orders": "orders",
+    "total_orders": "orders",
+    "total orders": "orders",
+    "sales volume": "orders",
+    
+    "conversion_rate": "conversion_rate",
+    "mean_conversion_rate": "conversion_rate",
+    "mean conversion rate": "conversion_rate",
+    "conversion": "conversion_rate",
+    "checkout": "conversion_rate",
+    "ctr": "conversion_rate",
+    
+    "retention_rate": "retention_rate",
+    "mean_retention_rate": "retention_rate",
+    "mean retention rate": "retention_rate",
+    "retention": "retention_rate"
+}
+
+def normalize_driver(driver: str) -> str:
+    if not driver:
+        return ""
+    d_clean = driver.lower().replace("_", " ").strip()
+    if driver.lower() in DRIVER_ALIASES:
+        return DRIVER_ALIASES[driver.lower()]
+    if d_clean in DRIVER_ALIASES:
+        return DRIVER_ALIASES[d_clean]
+    for k, v in DRIVER_ALIASES.items():
+        if k in d_clean or d_clean in k:
+            return v
+    return driver.lower()
+
+def normalize_kpi(kpi: str) -> str:
+    if not kpi:
+        return ""
+    k_clean = kpi.lower().replace("_", " ").strip()
+    if kpi.lower() in KPI_ALIASES:
+        return KPI_ALIASES[kpi.lower()]
+    if k_clean in KPI_ALIASES:
+        return KPI_ALIASES[k_clean]
+    for k, v in KPI_ALIASES.items():
+        if k in k_clean or k_clean in k:
+            return v
+    return kpi.lower()
+
 class HypothesisGenerator:
     def __init__(
         self, 
@@ -33,6 +134,12 @@ class HypothesisGenerator:
             self.client = None
         else:
             self.client = OpenAI(base_url=self.base_url, api_key=self.api_key, timeout=None)
+
+        from src.core.history.embeddings.encoder import SentenceTransformerEncoder
+        if history_manager and hasattr(history_manager, "encoder") and history_manager.encoder:
+            self.encoder = history_manager.encoder
+        else:
+            self.encoder = SentenceTransformerEncoder()
 
     def _determine_target_kpi(self, query: str) -> str:
         """
@@ -110,16 +217,17 @@ class HypothesisGenerator:
 
     def generate_candidates(self, context: Dict[str, Any]) -> List[Dict[str, Any]]:
         """
-        Assembles data signals and uses the LLM to generate 10–20 hypotheses,
-        then scores and ranks them, returning the top 3–5 candidate hypotheses.
+        New prioritized hypothesis generator pipeline.
+        Responsible for candidate generation, normalization, semantic deduplication, and prioritisation.
         """
         query = context.get("query", "")
         product_id = context.get("product_id", "P001")
+        logger.info(f"generate_candidates: Starting refactored generation pipeline for query='{query}'")
         
         # 1. Parse target KPI
         target_kpi = self._determine_target_kpi(query)
         
-        # 2. Retrieve SHAP values & past experiments (aggregated if query is objective-agnostic)
+        # 2. Retrieve SHAP values & past experiments
         q_lower = query.lower()
         is_explicit = any(k in q_lower for k in ["revenue", "profit", "margin", "conversion", "checkout", "ctr", "order", "sales volume"])
         
@@ -135,14 +243,11 @@ class HypothesisGenerator:
                         feat_with_tag = feat.copy()
                         feat_with_tag["clean_name"] = f"{feat_name} (drives {kpi.replace('_', ' ')})"
                         shap_importance.append(feat_with_tag)
-                        
-            # Sort by absolute SHAP impact value
             shap_importance.sort(key=lambda x: abs(x.get("importance_value", 0.0)), reverse=True)
             
             past_exps = []
             for kpi in ["revenue", "profit", "orders", "conversion_rate"]:
                 past_exps.extend(self._get_past_experiments(kpi))
-                
             seen_exps = set()
             unique_past_exps = []
             for e in past_exps:
@@ -156,41 +261,236 @@ class HypothesisGenerator:
             
         shap_summary = "\n".join([f"- {f['clean_name']} (SHAP Impact: {f['importance_value']})" for f in shap_importance[:8]])
         past_exps_summary = "\n".join([f"- {e}" for e in past_exps[:8]])
-        
-        # 4. Retrieve KB rules
         kb_rules = self._get_knowledge_base_rules()
         kb_rules_summary = "\n".join([f"- {r}" for r in kb_rules[:5]])
 
-        # 5. Formulate candidates using LLM (if client available) or Fallback Templates
-        candidates = []
+        # 3. Generate raw candidates
+        raw_candidates = []
         if self.client:
-            candidates = self._generate_llm_candidates(
+            raw_candidates = self._generate_llm_candidates(
                 query, target_kpi, shap_summary, past_exps_summary, kb_rules_summary, context
             )
-            
-        if not candidates:
-            logger.info("Using template-based candidates fallback.")
-            candidates = self._generate_fallback_candidates(query, target_kpi, context)
+        if not raw_candidates:
+            raw_candidates = self._generate_fallback_candidates(query, target_kpi, context)
 
-        # 6. Score and Rank candidates
+        # 4. Normalize & Filter candidates
+        from src.core.decision.config_loader import load_decision_config
+        try:
+            cfg = load_decision_config()
+            valid_drivers = list(cfg.get("elasticity", {}).get("min_driver_delta", {}).keys())
+        except Exception:
+            valid_drivers = []
+        if not valid_drivers:
+            valid_drivers = ["discount_pct", "shipping_fee", "avg_selling_price", "marketing_spend"]
+            
+        valid_kpis = ["revenue", "profit", "orders", "conversion_rate", "retention_rate"]
+        
+        normalized_candidates = []
+        for cand in raw_candidates:
+            if not isinstance(cand, dict):
+                continue
+            
+            # Reconcile id and hypothesis_id fields
+            h_id = cand.get("hypothesis_id") or cand.get("id")
+            if not h_id:
+                continue
+                
+            title = cand.get("title")
+            desc = cand.get("description")
+            if not title or not desc:
+                continue
+                
+            # Normalize driver_variable
+            driver = normalize_driver(cand.get("driver_variable") or "")
+            if driver not in valid_drivers:
+                logger.warning(f"Discarding candidate '{h_id}': driver_variable '{driver}' not in configured drivers {valid_drivers}")
+                continue
+                
+            # Normalize target KPI / affected KPIs list
+            raw_kpis = cand.get("affected_kpis") or []
+            if isinstance(raw_kpis, str):
+                raw_kpis = [raw_kpis]
+            kpis = [normalize_kpi(k) for k in raw_kpis]
+            kpis = [k for k in kpis if k in valid_kpis]
+            if not kpis:
+                logger.warning(f"Discarding candidate '{h_id}': no valid affected_kpis in {raw_kpis}")
+                continue
+                
+            normalized_cand = {
+                "id": h_id,
+                "hypothesis_id": h_id,
+                "title": title,
+                "description": desc,
+                "driver_variable": driver,
+                "affected_kpis": kpis,
+                "confidence_prior": float(cand.get("confidence_prior") or 0.50),
+                "generated_from": cand.get("generated_from") or "LLM Generation",
+                "source": cand.get("source") or cand.get("generated_from") or "LLM"
+            }
+            normalized_candidates.append(normalized_cand)
+
+        # 5. Semantic Deduplication (Similarity Threshold = 0.85)
+        titles = [cand["title"] for cand in normalized_candidates]
+        if len(titles) > 1 and hasattr(self, "encoder") and self.encoder:
+            try:
+                embeddings = [self.encoder.encode(t) for t in titles]
+                import numpy as np
+                norms = [np.linalg.norm(e) for e in embeddings]
+                embeddings = [e / n if n > 1e-8 else e for e, n in zip(embeddings, norms)]
+                
+                keep_indices = []
+                for i in range(len(normalized_candidates)):
+                    is_duplicate = False
+                    for j in keep_indices:
+                        sim = float(np.dot(embeddings[i], embeddings[j]))
+                        if sim >= 0.85:
+                            is_duplicate = True
+                            logger.info(f"Deduplication: Dropped '{titles[i]}' as similar to '{titles[j]}' (Similarity={sim:.3f})")
+                            break
+                    if not is_duplicate:
+                        keep_indices.append(i)
+                normalized_candidates = [normalized_candidates[idx] for idx in keep_indices]
+            except Exception as ex:
+                logger.error(f"Semantic deduplication failed: {ex}")
+
+        # 6. Compute Evidence Coverage (SHAP, Query, Trend, Anomaly, Experiment)
+        # Pre-query database for validated experiments matching target drivers
+        validated_counts = {}
+        successful_counts = {}
+        if self.db:
+            try:
+                from src.core.history.storage.models import Experiment
+                for driver in valid_drivers:
+                    total_exp = self.db.query(Experiment).filter(
+                        Experiment.driver == driver,
+                        Experiment.outcome.in_(["positive", "negative"])
+                    ).count()
+                    wins = self.db.query(Experiment).filter(
+                        Experiment.driver == driver,
+                        Experiment.outcome == "positive"
+                    ).count()
+                    validated_counts[driver] = total_exp
+                    successful_counts[driver] = wins
+            except Exception as ex:
+                logger.error(f"Failed pre-querying experiment history counts: {ex}")
+
+        trends = context.get("trends", {})
+        rev_trend = str(trends.get("revenue_trend", "stable")).lower()
+        ord_trend = str(trends.get("order_trend", "stable")).lower()
+        has_decline_trend = any("dec" in t or "decline" in t or "drop" in t or "down" in t for t in [rev_trend, ord_trend])
+        has_decline_query = any(w in q_lower for w in ["decline", "drop", "decrease", "down", "why did"])
+        anomalies = context.get("anomalies", [])
+        has_checkout_anomaly = any(anom.get("kpi") in ["conversion_rate", "orders"] for anom in anomalies)
+
         scored_candidates = []
-        for cand in candidates:
-            score_data = self._score_candidate(cand, shap_importance, past_exps, context)
-            cand.update(score_data)
+        for cand in normalized_candidates:
+            driver = cand["driver_variable"]
+            kpi = cand["affected_kpis"][0]
+            
+            # SHAP
+            shap_features = self._get_shap_features(kpi)
+            shap_match = any(driver in feat.get("feature", "") for feat in shap_features[:5])
+            
+            # User Query
+            query_match = False
+            for kw, drv in DRIVER_ALIASES.items():
+                if drv == driver and kw in q_lower:
+                    query_match = True
+                    break
+                    
+            # Trend
+            trend_match = False
+            if (has_decline_trend or has_decline_query) and driver in ["marketing_spend", "discount_pct", "avg_selling_price"]:
+                trend_match = True
+                
+            # Anomaly
+            anomaly_match = False
+            if has_checkout_anomaly and driver in ["shipping_fee", "discount_pct"]:
+                anomaly_match = True
+                
+            # Past validated experiment
+            exp_match = validated_counts.get(driver, 0) > 0
+            
+            evidence_sources = []
+            if shap_match: evidence_sources.append("SHAP")
+            if query_match: evidence_sources.append("UserQuery")
+            if trend_match: evidence_sources.append("Trend")
+            if anomaly_match: evidence_sources.append("Anomaly")
+            if exp_match: evidence_sources.append("PastExperiment")
+            
+            coverage = len(evidence_sources) / 5.0
+            
+            # 7. Compute Historical Reliability
+            total_exp = validated_counts.get(driver, 0)
+            if total_exp > 0:
+                reliability = successful_counts.get(driver, 0) / total_exp
+            else:
+                reliability = 0.50
+                
+            # 8. Compute User Intent Match
+            explicit_drivers = []
+            for kw, drv in DRIVER_ALIASES.items():
+                if kw in q_lower:
+                    if drv not in explicit_drivers:
+                        explicit_drivers.append(drv)
+            if explicit_drivers:
+                if driver in explicit_drivers:
+                    intent_match = 1.0
+                elif driver == "marketing_spend" and "discount_pct" in explicit_drivers:
+                    intent_match = 0.4
+                elif driver == "discount_pct" and "marketing_spend" in explicit_drivers:
+                    intent_match = 0.4
+                else:
+                    intent_match = 0.1
+            else:
+                intent_match = 1.0
+                
+            cand["evidence_sources"] = evidence_sources
+            cand["evidence_coverage"] = float(coverage)
+            cand["historical_reliability"] = float(reliability)
+            cand["intent_match"] = float(intent_match)
+            
+            # Base priority score (excludes diversity bonus for initial sorting)
+            cand["base_priority"] = 0.45 * coverage + 0.30 * reliability + 0.15 * intent_match
             scored_candidates.append(cand)
 
-        # Sort descending by composite score
-        scored_candidates = sorted(scored_candidates, key=lambda x: x["generator_score"], reverse=True)
-        
-        # Return top 3-5 candidates
+        # 9. Diversity Bonus (only the highest base priority per driver variable gets 1.0)
+        scored_candidates.sort(key=lambda x: x["base_priority"], reverse=True)
+        seen_drivers = set()
+        for cand in scored_candidates:
+            drv = cand["driver_variable"]
+            if drv not in seen_drivers:
+                cand["diversity_bonus"] = 1.0
+                seen_drivers.add(drv)
+            else:
+                cand["diversity_bonus"] = 0.0
+
+        # 10. Calculate Validation Priority (Clamped [0, 1])
+        for cand in scored_candidates:
+            priority = (
+                0.45 * cand["evidence_coverage"] +
+                0.30 * cand["historical_reliability"] +
+                0.15 * cand["intent_match"] +
+                0.10 * cand["diversity_bonus"]
+            )
+            cand["validation_priority"] = float(max(0.0, min(1.0, priority)))
+            
+            # Map backward compatible fields for downstream validators/rankers
+            cand["is_primary"] = (cand["intent_match"] == 1.0)
+            cand["generator_metadata"] = {
+                "confidence_prior": cand["confidence_prior"],
+                "generated_from": cand["generated_from"]
+            }
+
+        # 11. Final Rank & Return Top N (Default = 5)
+        scored_candidates.sort(key=lambda x: x["validation_priority"], reverse=True)
         pruned_candidates = scored_candidates[:5]
         
-        # Clean scores from output to match baseline DecisionManager schema
+        # Clean temporary sorting key
         for c in pruned_candidates:
-            c.pop("generator_score", None)
-            c.pop("score_breakdown", None)
+            c.pop("base_priority", None)
             
-        logger.info(f"Generated and pruned to {len(pruned_candidates)} candidate hypotheses.")
+        logger.info(f"generate_candidates: Finished candidate prioritisation. Returning top {len(pruned_candidates)} hypotheses.")
         return pruned_candidates
 
     def _generate_llm_candidates(
@@ -208,6 +508,9 @@ class HypothesisGenerator:
         system_prompt = (
             "You are a professional Business Intelligence Analyst.\n"
             "Generate 10 to 20 candidate hypotheses matching the business context, query, and statistical drivers.\n\n"
+            "CRITICAL INSTRUCTIONS:\n"
+            "1. Each hypothesis MUST directly address and explain the phenomenon described in the User Query (e.g., if the user asks why profit DECLINED, the hypotheses must frame the causal relationship explaining why profit declined, such as 'Marketing spend reduction caused profit decline' or 'Increased discounts eroded profitability').\n"
+            "2. DO NOT output generic, textbook positive correlation statements like 'Marketing spend positively impacts revenue' or 'Average selling price affects profit'. The hypotheses must be actionable causal claims tailored to the query's direction.\n\n"
             "CONSTRAINT RULES:\n"
             "1. Each hypothesis MUST map to ONE of the following real database driver variables:\n"
             "   - 'discount_pct'\n"
@@ -217,8 +520,8 @@ class HypothesisGenerator:
             "2. Each hypothesis MUST list one or more affected KPIs from: ['total_revenue', 'total_profit', 'total_orders', 'mean_conversion_rate'].\n"
             "3. The returned JSON structure MUST be a list of objects containing exactly these fields:\n"
             "   - 'hypothesis_id': Unique identifier (e.g. 'HYP_DIS_01', 'HYP_PRI_02')\n"
-            "   - 'title': Clear business statement (e.g. 'Price increases decrease Customer Conversion')\n"
-            "   - 'description': Multi-sentence description explaining the reasoning\n"
+            "   - 'title': Clear business statement explaining the cause of the phenomenon (e.g. 'Increased shipping charges drove down orders and profit')\n"
+            "   - 'description': Multi-sentence description explaining the reasoning and connecting it to the query's specific metrics or direction\n"
             "   - 'generated_from': Set to one of: 'SHAP Feature Importance', 'Historical Experiments', 'Knowledge Base Pattern', 'Correlation Heuristics'\n"
             "   - 'affected_kpis': List of string KPIs affected\n"
             "   - 'driver_variable': The mapped database driver column (must be exactly 'discount_pct', 'shipping_fee', 'avg_selling_price', or 'marketing_spend')\n"
@@ -236,6 +539,7 @@ class HypothesisGenerator:
             f"Business Knowledge Base Rules:\n{kb_rules_summary or 'No rules cached.'}\n"
         )
 
+        logger.info(f"_generate_llm_candidates: Requesting NVIDIA NIM model '{self.model}' with prompt length={len(user_prompt)}")
         try:
             response = self.client.chat.completions.create(
                 model=self.model,
@@ -247,6 +551,7 @@ class HypothesisGenerator:
                 max_tokens=2000
             )
             raw_text = response.choices[0].message.content.strip()
+            logger.debug(f"_generate_llm_candidates: Raw LLM response received:\n{raw_text}")
             
             # Extract JSON list
             json_match = re.search(r"\[.*\]", raw_text, re.DOTALL)
@@ -256,9 +561,12 @@ class HypothesisGenerator:
                 data = json.loads(raw_text)
                 
             if isinstance(data, list) and len(data) >= 5:
+                logger.info(f"_generate_llm_candidates: Extracted {len(data)} hypotheses from LLM successfully.")
                 return data
+            else:
+                logger.warning(f"_generate_llm_candidates: Extracted data is not a valid list of size >= 5: {type(data)}")
         except Exception as e:
-            logger.error(f"LLM candidate hypothesis generation failed: {e}")
+            logger.error(f"_generate_llm_candidates: LLM candidate hypothesis generation failed: {e}")
         return []
 
     def _generate_fallback_candidates(self, query: str, target_kpi: str, context: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:

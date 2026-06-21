@@ -1,6 +1,9 @@
 from typing import Dict, Any, List
 
 from src.core.decision.config_loader import load_decision_config
+from src.utils.logger import setup_logger
+
+logger = setup_logger("hypothesis_ranker")
 
 class HypothesisRanker:
     def __init__(self):
@@ -15,6 +18,7 @@ class HypothesisRanker:
             "retention": 0.10,
             "conversion": 0.10
         })
+        logger.info(f"Initialized HypothesisRanker: confidence_weight={self.w_confidence}, impact_weight={self.w_impact}, objectives_weights={self.business_objectives}")
 
     def rank_hypotheses(
         self, 
@@ -26,6 +30,8 @@ class HypothesisRanker:
         Ranks hypotheses by a configurable weighted composite of confidence and business impact.
         Uses batch-normalized impact scores scaled by dynamic business objectives weights, and tie-breaking by causal ATE magnitude.
         """
+        logger.info(f"rank_hypotheses: Starting prioritization and ranking of {len(hypotheses)} candidate hypotheses.")
+        
         # Pre-compute max delta across the batch for normalization
         all_deltas = []
         for hypo in hypotheses:
@@ -35,7 +41,8 @@ class HypothesisRanker:
             all_deltas.append(abs(delta_pct))
         max_delta = max(all_deltas) if all_deltas else 1.0
         max_delta = max(max_delta, 1.0)  # prevent division by zero
-
+        logger.debug(f"rank_hypotheses: Batch max forecast delta={max_delta}% for normalization.")
+ 
         ranked = []
         for hypo in hypotheses:
             hyp_id = hypo["hypothesis_id"]
@@ -73,6 +80,20 @@ class HypothesisRanker:
             # Store causal ATE for tie-breaking
             ate_magnitude = abs(val_res.get("causal", {}).get("ate_estimate", 0.0))
             
+            logger.debug(f"rank_hypotheses: Scoring '{hyp_id}': title='{hypo.get('title')}'")
+            logger.debug(f"  overall_conf={overall_conf:.4f}, base_impact={base_impact:.4f}, objective_weight={kpi_weight} ({obj_key})")
+            logger.debug(f"  weighted composite rank_score={rank_score:.4f}, causal_ATE_tiebreaker={ate_magnitude:.4f}")
+            
+            # Evaluate and log risk category / volatility profile
+            from src.core.decision.recommendation.risk_classifier import risk_classifier
+            v_val = "HIGH" if abs(delta_pct) > 15 else "MEDIUM" if abs(delta_pct) > 5 else "LOW"
+            r_cat = risk_classifier.classify(
+                confidence=overall_conf,
+                volatility=v_val,
+                reversibility="EASY" if obj_key == "conversion" else "MODERATE"
+            )
+            logger.info(f"rank_hypotheses: Analyzed risk profile for '{hyp_id}' -> Volatility: {v_val} (impact_pct={delta_pct:.2f}%), Confidence: {overall_conf:.4f} -> Projected Risk: {r_cat}")
+            
             ranked.append({
                 "hypothesis": hypo,
                 "validation": val_res,
@@ -82,11 +103,13 @@ class HypothesisRanker:
                 "_ate_magnitude": ate_magnitude
             })
             
-        # Sort descending by rank_score, tie-break by causal ATE magnitude
-        ranked = sorted(ranked, key=lambda x: (x["rank_score"], x["_ate_magnitude"]), reverse=True)
+        # Sort descending by rank_score (prioritizing primary opportunities), tie-break by causal ATE magnitude
+        logger.info("rank_hypotheses: Sorting ranked hypotheses prioritizing primary opportunities first.")
+        ranked = sorted(ranked, key=lambda x: (not x["hypothesis"].get("is_primary", True), -x["rank_score"], -x["_ate_magnitude"]))
 
         # Clean internal tie-breaking field from output
         for item in ranked:
             item.pop("_ate_magnitude", None)
 
+        logger.info(f"rank_hypotheses: Rank sorting complete. Highest priority hypothesis: '{ranked[0]['hypothesis']['hypothesis_id']}' with score={ranked[0]['rank_score']:.4f}")
         return ranked
