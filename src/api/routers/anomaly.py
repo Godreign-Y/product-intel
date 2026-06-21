@@ -1,9 +1,10 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 
 from src.api.schemas.anomaly import (
     AnomalyRequest, CategoryAnomalyRequest, GlobalAnomalyRequest,
-    AnomalyResponse, CategoryAnomalyResponse, GlobalRankingResponse
+    AnomalyResponse, CategoryAnomalyResponse, GlobalRankingResponse,
+    AnomalyScanRequest, AnomalyScanResponse
 )
 from src.api.dependencies import get_anomaly_engine
 from src.core.anomaly.engine import AnomalyDetectionEngine
@@ -28,6 +29,25 @@ async def detect_anomaly_endpoint(
         raise he
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Anomaly detection error: {str(e)}")
+
+@router.post("/scan", response_model=AnomalyScanResponse)
+async def scan_anomalies_endpoint(
+    payload: AnomalyScanRequest,
+    engine: AnomalyDetectionEngine = Depends(get_anomaly_engine)
+):
+    try:
+        res = engine.scan_anomalies(
+            product_id=payload.product_id,
+            lookback_days=payload.lookback_days,
+            kpi=payload.kpi
+        )
+        if "error" in res:
+            raise HTTPException(status_code=400, detail=res["error"])
+        return res
+    except HTTPException as he:
+        raise he
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Anomaly scanning error: {str(e)}")
 
 @router.post("/product", response_model=AnomalyResponse)
 async def detect_product_anomaly_endpoint(

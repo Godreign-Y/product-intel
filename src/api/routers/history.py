@@ -35,8 +35,7 @@ async def build_repository(
     manager: HistoryManager = Depends(get_history_manager)
 ):
     try:
-        df_hist = get_historical_df_from_db()
-        result = manager.run_build_pipeline(df_hist, force_rebuild=force_rebuild)
+        result = manager.run_build_pipeline(force_rebuild=force_rebuild)
         return result
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Pipeline execution failed: {str(e)}")

@@ -4,9 +4,10 @@ from typing import Dict, Any, List, Optional
 from sklearn.ensemble import IsolationForest
 from sklearn.neighbors import LocalOutlierFactor
 from sklearn.covariance import EllipticEnvelope
+from sklearn.preprocessing import StandardScaler
 
 class MultivariateAnomalyDetector:
-    def __init__(self, algorithm: str = "mahalanobis", contamination: float = 0.05):
+    def __init__(self, algorithm: str = "isolation_forest", contamination: float = 0.05):
         self.algorithm = algorithm.lower()
         self.contamination = contamination
         self.feature_cols = [
@@ -52,24 +53,29 @@ class MultivariateAnomalyDetector:
         X_hist = history_df[self.feature_cols].fillna(0.0).values
         X_target = target_row[self.feature_cols].fillna(0.0).values[0]
         
+        # Standardize features using StandardScaler
+        scaler = StandardScaler()
+        X_hist_scaled = scaler.fit_transform(X_hist)
+        X_target_scaled = scaler.transform(X_target.reshape(1, -1))[0]
+        
         # Calculate statistics
         if self.algorithm == "mahalanobis":
-            return self._detect_mahalanobis(X_hist, X_target)
+            return self._detect_mahalanobis(X_hist_scaled, X_target_scaled, X_hist)
         elif self.algorithm == "isolation_forest":
-            return self._detect_isolation_forest(X_hist, X_target)
+            return self._detect_isolation_forest(X_hist_scaled, X_target_scaled, X_hist)
         elif self.algorithm == "lof":
-            return self._detect_lof(X_hist, X_target)
+            return self._detect_lof(X_hist_scaled, X_target_scaled, X_hist)
         elif self.algorithm == "robust_covariance":
-            return self._detect_robust_covariance(X_hist, X_target)
+            return self._detect_robust_covariance(X_hist_scaled, X_target_scaled, X_hist)
         else:
-            return self._detect_mahalanobis(X_hist, X_target)
+            return self._detect_isolation_forest(X_hist_scaled, X_target_scaled, X_hist)
 
-    def _detect_mahalanobis(self, X_hist: np.ndarray, x: np.ndarray) -> Dict[str, Any]:
+    def _detect_mahalanobis(self, X_hist_scaled: np.ndarray, x_scaled: np.ndarray, X_hist_unscaled: np.ndarray) -> Dict[str, Any]:
         """
         Mahalanobis Distance anomaly detection with feature attribution.
         """
-        mean_vec = np.mean(X_hist, axis=0)
-        cov_matrix = np.cov(X_hist, rowvar=False)
+        mean_vec = np.mean(X_hist_scaled, axis=0)
+        cov_matrix = np.cov(X_hist_scaled, rowvar=False)
         
         # Regularize covariance if it is singular
         if np.linalg.cond(cov_matrix) > 1e12 or np.linalg.det(cov_matrix) == 0:
@@ -77,13 +83,13 @@ class MultivariateAnomalyDetector:
             
         cov_inv = np.linalg.pinv(cov_matrix)
         
-        diff = x - mean_vec
+        diff = x_scaled - mean_vec
         m_dist_sq = diff.T @ cov_inv @ diff
         m_dist = np.sqrt(max(0.0, m_dist_sq))
         
         # Calculate historical distance distribution to get z-score and probability
         hist_dists = []
-        for row in X_hist:
+        for row in X_hist_scaled:
             d = row - mean_vec
             hist_dists.append(np.sqrt(max(0.0, d.T @ cov_inv @ d)))
             
@@ -97,7 +103,6 @@ class MultivariateAnomalyDetector:
         anomaly_score = min(100.0, max(0.0, z_score * 25.0)) # Z-score 4 -> 100
         
         # Calculate feature contributions
-        # Component contribution: diff_i * sum_j (cov_inv_ij * diff_j)
         contribs = diff * (cov_inv @ diff)
         contrib_pct = {}
         for idx, col in enumerate(self.feature_cols):
@@ -107,15 +112,16 @@ class MultivariateAnomalyDetector:
         sum_contrib = sum(abs(v) for v in contrib_pct.values()) or 1.0
         sorted_contribs = []
         for col, val in contrib_pct.items():
+            idx = self.feature_cols.index(col)
             sorted_contribs.append({
                 "feature": col,
                 "contribution_pct": round(abs(val) / sum_contrib * 100.0, 2),
-                "direction": "above baseline" if x[self.feature_cols.index(col)] > mean_vec[self.feature_cols.index(col)] else "below baseline"
+                "direction": "above baseline" if x_scaled[idx] > mean_vec[idx] else "below baseline"
             })
         sorted_contribs = sorted(sorted_contribs, key=lambda x: x["contribution_pct"], reverse=True)
         
         # Nearest normal observation
-        nearest_obs = self._get_nearest_observation(X_hist, x)
+        nearest_obs = self._get_nearest_observation(X_hist_unscaled, X_hist_scaled, x_scaled)
         
         return {
             "anomaly_detected": anomaly_detected,
@@ -127,15 +133,15 @@ class MultivariateAnomalyDetector:
             "nearest_normal_observation": nearest_obs
         }
 
-    def _detect_isolation_forest(self, X_hist: np.ndarray, x: np.ndarray) -> Dict[str, Any]:
+    def _detect_isolation_forest(self, X_hist_scaled: np.ndarray, x_scaled: np.ndarray, X_hist_unscaled: np.ndarray) -> Dict[str, Any]:
         """
         Isolation Forest anomaly detection.
         """
         clf = IsolationForest(contamination=self.contamination, random_state=42)
-        clf.fit(X_hist)
+        clf.fit(X_hist_scaled)
         
-        pred = clf.predict(x.reshape(1, -1))[0]
-        score = clf.score_samples(x.reshape(1, -1))[0]
+        pred = clf.predict(x_scaled.reshape(1, -1))[0]
+        score = clf.score_samples(x_scaled.reshape(1, -1))[0]
         
         # Normalize score into 0-100 range
         # Isolation Forest score returns values around [-0.8, -0.2], lower is more anomalous
@@ -144,8 +150,8 @@ class MultivariateAnomalyDetector:
         anomaly_score = min(100.0, max(0.0, norm_score * 100.0))
         
         # Feature contributions via mean difference
-        sorted_contribs = self._get_baseline_contributions(X_hist, x)
-        nearest_obs = self._get_nearest_observation(X_hist, x)
+        sorted_contribs = self._get_baseline_contributions(X_hist_scaled, x_scaled)
+        nearest_obs = self._get_nearest_observation(X_hist_unscaled, X_hist_scaled, x_scaled)
         
         return {
             "anomaly_detected": bool(pred == -1),
@@ -156,21 +162,21 @@ class MultivariateAnomalyDetector:
             "nearest_normal_observation": nearest_obs
         }
 
-    def _detect_lof(self, X_hist: np.ndarray, x: np.ndarray) -> Dict[str, Any]:
+    def _detect_lof(self, X_hist_scaled: np.ndarray, x_scaled: np.ndarray, X_hist_unscaled: np.ndarray) -> Dict[str, Any]:
         """
         Local Outlier Factor (LOF) anomaly detection.
         """
         clf = LocalOutlierFactor(contamination=self.contamination, novelty=True)
-        clf.fit(X_hist)
+        clf.fit(X_hist_scaled)
         
-        pred = clf.predict(x.reshape(1, -1))[0]
-        score = clf.decision_function(x.reshape(1, -1))[0]
+        pred = clf.predict(x_scaled.reshape(1, -1))[0]
+        score = clf.decision_function(x_scaled.reshape(1, -1))[0]
         
         anomaly_score = min(100.0, max(0.0, (score * -1.0 + 0.5) * 100.0)) if score < 0 else 0.0
         
         # Baseline difference attribution
-        sorted_contribs = self._get_baseline_contributions(X_hist, x)
-        nearest_obs = self._get_nearest_observation(X_hist, x)
+        sorted_contribs = self._get_baseline_contributions(X_hist_scaled, x_scaled)
+        nearest_obs = self._get_nearest_observation(X_hist_unscaled, X_hist_scaled, x_scaled)
         
         return {
             "anomaly_detected": bool(pred == -1),
@@ -181,21 +187,21 @@ class MultivariateAnomalyDetector:
             "nearest_normal_observation": nearest_obs
         }
 
-    def _detect_robust_covariance(self, X_hist: np.ndarray, x: np.ndarray) -> Dict[str, Any]:
+    def _detect_robust_covariance(self, X_hist_scaled: np.ndarray, x_scaled: np.ndarray, X_hist_unscaled: np.ndarray) -> Dict[str, Any]:
         """
         Elliptic Envelope (Robust Covariance) anomaly detection.
         """
         clf = EllipticEnvelope(contamination=self.contamination, random_state=42)
-        clf.fit(X_hist)
+        clf.fit(X_hist_scaled)
         
-        pred = clf.predict(x.reshape(1, -1))[0]
-        score = clf.decision_function(x.reshape(1, -1))[0]
+        pred = clf.predict(x_scaled.reshape(1, -1))[0]
+        score = clf.decision_function(x_scaled.reshape(1, -1))[0]
         
         anomaly_score = min(100.0, max(0.0, (score * -1.0 + 0.5) * 100.0)) if score < 0 else 0.0
         
         # Attribution
-        sorted_contribs = self._get_baseline_contributions(X_hist, x)
-        nearest_obs = self._get_nearest_observation(X_hist, x)
+        sorted_contribs = self._get_baseline_contributions(X_hist_scaled, x_scaled)
+        nearest_obs = self._get_nearest_observation(X_hist_unscaled, X_hist_scaled, x_scaled)
         
         return {
             "anomaly_detected": bool(pred == -1),
@@ -206,18 +212,23 @@ class MultivariateAnomalyDetector:
             "nearest_normal_observation": nearest_obs
         }
 
-    def _get_nearest_observation(self, X_hist: np.ndarray, x: np.ndarray) -> Dict[str, float]:
-        nearest_idx = np.argmin(np.linalg.norm(X_hist - x, axis=1))
-        return {col: float(val) for col, val in zip(self.feature_cols, X_hist[nearest_idx])}
+    def _get_nearest_observation(
+        self,
+        X_hist_unscaled: np.ndarray,
+        X_hist_scaled: np.ndarray,
+        x_scaled: np.ndarray
+    ) -> Dict[str, float]:
+        nearest_idx = np.argmin(np.linalg.norm(X_hist_scaled - x_scaled, axis=1))
+        return {col: float(val) for col, val in zip(self.feature_cols, X_hist_unscaled[nearest_idx])}
 
-    def _get_baseline_contributions(self, X_hist: np.ndarray, x: np.ndarray) -> List[Dict[str, Any]]:
-        mean_vec = np.mean(X_hist, axis=0)
-        diff = np.abs(x - mean_vec) / (np.std(X_hist, axis=0) + 1e-5)
+    def _get_baseline_contributions(self, X_hist_scaled: np.ndarray, x_scaled: np.ndarray) -> List[Dict[str, Any]]:
+        mean_vec = np.mean(X_hist_scaled, axis=0)
+        diff = np.abs(x_scaled - mean_vec) / (np.std(X_hist_scaled, axis=0) + 1e-5)
         sorted_contribs = []
         for idx, col in enumerate(self.feature_cols):
             sorted_contribs.append({
                 "feature": col,
                 "contribution_pct": round(diff[idx] / (np.sum(diff) + 1e-5) * 100.0, 2),
-                "direction": "above baseline" if x[idx] > mean_vec[idx] else "below baseline"
+                "direction": "above baseline" if x_scaled[idx] > mean_vec[idx] else "below baseline"
             })
         return sorted(sorted_contribs, key=lambda x: x["contribution_pct"], reverse=True)

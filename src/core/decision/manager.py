@@ -1,4 +1,5 @@
 import datetime
+import concurrent.futures
 from sqlalchemy.orm import Session
 from typing import Dict, Any, List, Optional
 
@@ -52,13 +53,25 @@ class DecisionManager:
         self.rec_engine = RecommendationEngine()
         self.planner = ExperimentPlanner()
         self.explainer = ExplanationEngine()
+        self.df_historical = df_historical
+
+    def _get_product_df_len(self, product_id: str) -> int:
+        """Returns the number of rows for a given product in the historical DataFrame."""
+        try:
+            if self.df_historical is not None:
+                return len(self.df_historical[self.df_historical["product_id"] == product_id])
+        except Exception:
+            pass
+        return 0
 
     def process_decision_flow(self, query: str, product_id: str = "P001", session_id: Optional[str] = None) -> Dict[str, Any]:
         """
         Executes the complete AI Scientist decision intelligence loop.
+        Now with: product-scoped context, parallel evidence+validation,
+        bulk DB flush, data_quality_factor, and context-aware planner.
         """
-        # 1. Assemble Business Context
-        context_data = self.context_engine.assemble_context(query)
+        # 1. Assemble Business Context — product-scoped
+        context_data = self.context_engine.assemble_context(query, product_id)
         
         # Write Context to DB
         db_context = DecisionContext(
@@ -69,11 +82,14 @@ class DecisionManager:
             trend_metrics=context_data["trends"]
         )
         self.db.add(db_context)
-        self.db.commit() # Get db_context.id
+        self.db.flush()  # Get db_context.id without committing yet
         
         # 2. Generate Candidate Hypotheses
         candidates = self.hypo_generator.generate_candidates(context_data)
         
+        # Pre-compute product data length for data quality factor
+        product_df_len = self._get_product_df_len(product_id)
+
         # Write Candidates & perform checks
         db_hypos = []
         validation_results = {}
@@ -85,16 +101,26 @@ class DecisionManager:
             unique_id = f"HYP_{db_context.id}_{cand['hypothesis_id']}"
             cand["hypothesis_id"] = unique_id
             
-            # Query similar previous experiments
-            evidence = self.evidence_retriever.retrieve_historical_evidence(cand["title"], cand["affected_kpis"])
+            # Run evidence retrieval and validation in parallel (they are independent)
+            with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
+                f_evidence = executor.submit(
+                    self.evidence_retriever.retrieve_historical_evidence,
+                    cand["title"], cand["affected_kpis"]
+                )
+                f_validation = executor.submit(
+                    self.validator.validate, cand, product_id, query
+                )
+                evidence = f_evidence.result()
+                validation = f_validation.result()
+
             historical_evidences[cand["hypothesis_id"]] = evidence
-            
-            # Run parallel ML validation checks
-            validation = self.validator.validate(cand, product_id)
             validation_results[cand["hypothesis_id"]] = validation
             
-            # Compute confidence score
-            score = self.scorer.compute_confidence(validation, evidence, cand["title"])
+            # Compute confidence score (with data quality factor)
+            score = self.scorer.compute_confidence(
+                validation, evidence, cand["title"],
+                product_df_len=product_df_len
+            )
             confidence_scores[cand["hypothesis_id"]] = score
             
             # Save Hypothesis to DB
@@ -108,7 +134,7 @@ class DecisionManager:
                 confidence_prior=cand["confidence_prior"]
             )
             self.db.add(db_hyp)
-            self.db.commit() # Get db_hyp.id
+            self.db.flush()  # Get db_hyp.id without committing
             db_hypos.append(db_hyp)
             
             # Save Validation Result to DB
@@ -122,7 +148,7 @@ class DecisionManager:
             )
             self.db.add(db_val)
             
-            # Save Confidence Score to DB
+            # Save Confidence Score to DB (now includes data_quality_factor)
             db_score = ConfidenceScore(
                 hypothesis_id=db_hyp.id,
                 overall_confidence=score["overall_confidence"],
@@ -131,17 +157,20 @@ class DecisionManager:
                 sensitivity_agreement=score["breakdown"]["sensitivity_alignment"],
                 forecast_agreement=score["breakdown"]["forecast_simulation_agreement"],
                 causal_confidence=score["breakdown"]["causal_confidence"],
+                data_quality_factor=score.get("data_quality_factor", 0.0),
                 reasoning_breakdown=score["reasoning"]
             )
             self.db.add(db_score)
             
+        # Bulk commit all hypothesis/validation/confidence records at once
         self.db.commit()
         
         # 3. Prioritize & Rank Hypotheses
         ranked_items = self.ranker.rank_hypotheses(candidates, validation_results, confidence_scores)
         
-        # 4. Generate Recommendations & Action Steps
-        recommendations = self.rec_engine.generate_recommendations(ranked_items)
+        # 4. Generate Recommendations & Action Steps (with context revenue for ROI normalization)
+        context_revenue = context_data.get("kpis", {}).get("total_revenue", 0.0)
+        recommendations = self.rec_engine.generate_recommendations(ranked_items, context_revenue=context_revenue, db=self.db)
         
         # Save Recommendations & Experiment Plans to DB
         for idx, rec in enumerate(recommendations):
@@ -156,17 +185,19 @@ class DecisionManager:
                 expected_kpi_improvement=rec["expected_kpi_improvement"],
                 estimated_roi=rec["estimated_roi"],
                 priority=rec["priority"],
-                rollback_strategy=rec["rollback_strategy"]
+                rollback_strategy=rec["rollback_strategy"],
+                risk_assessment=rec.get("risk_assessment")
             )
             self.db.add(db_rec)
-            self.db.commit() # Get db_rec.id
+            self.db.flush()  # Get db_rec.id
             
             # If needs experimentation, plan A/B test parameter requirements
             if rec["needs_experimentation"]:
                 hypo_obj = next((item for item in ranked_items if item["hypothesis"]["hypothesis_id"] == rec["hypothesis_id"]), None)
                 primary_metric = hypo_obj["hypothesis"]["affected_kpis"][0] if hypo_obj else "mean_conversion_rate"
                 
-                plan = self.planner.plan_experiment(rec, primary_metric)
+                # Pass context to planner for live traffic data
+                plan = self.planner.plan_experiment(rec, primary_metric, context=context_data)
                 
                 db_plan = ExperimentPlan(
                     recommendation_id=db_rec.id,
@@ -179,6 +210,7 @@ class DecisionManager:
                 )
                 self.db.add(db_plan)
                 
+        # Bulk commit all recommendations and experiment plans
         self.db.commit()
         
         # 5. Compile Executive Markdown Summary

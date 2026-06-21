@@ -50,7 +50,7 @@ class AnomalyDetectionEngine:
     def run_detection(
         self,
         product_id: str,
-        target_date: str,
+        target_date: Optional[str] = None,
         kpi: str = "revenue",
         skip_explanation: bool = False
     ) -> Dict[str, Any]:
@@ -58,6 +58,25 @@ class AnomalyDetectionEngine:
         Runs the full 15-layer anomaly detection pipeline for a single product KPI on a target date.
         """
         kpi_lower = kpi.lower()
+        
+        df_hist = self.df_historical
+        if df_hist is None:
+            from src.api.dependencies import get_historical_df_from_db
+            df_hist = get_historical_df_from_db(product_id=product_id)
+            
+        prod_data = df_hist[df_hist["product_id"] == product_id].copy()
+        if len(prod_data) == 0:
+            return {"error": f"Product ID {product_id} not found in historical dataset."}
+            
+        prod_data["date"] = pd.to_datetime(prod_data["date"])
+        prod_data = prod_data.sort_values(by="date").reset_index(drop=True)
+
+        if target_date is None:
+            target_ts = prod_data["date"].max()
+            target_date = target_ts.strftime("%Y-%m-%d")
+        else:
+            target_ts = pd.to_datetime(target_date)
+            
         cache_key = (product_id, target_date, kpi_lower)
         if hasattr(self, "_detection_cache") and cache_key in self._detection_cache:
             cached_res = self._detection_cache[cache_key]
@@ -65,21 +84,6 @@ class AnomalyDetectionEngine:
             if skip_explanation or (cached_res.get("explanation") and len(cached_res["explanation"].get("top_drivers", [])) > 0):
                 return cached_res
             
-        target_ts = pd.to_datetime(target_date)
-        
-        df_hist = self.df_historical
-        if df_hist is None:
-            from src.api.dependencies import get_historical_df_from_db
-            df_hist = get_historical_df_from_db(product_id=product_id)
-            
-        # 1. Prepare historical split up to (target_date - 1 day) to run forecast prediction on target_date
-        prod_data = df_hist[df_hist["product_id"] == product_id].copy()
-        if len(prod_data) == 0:
-            return {"error": f"Product ID {product_id} not found in historical dataset."}
-            
-        prod_data["date"] = pd.to_datetime(prod_data["date"])
-        prod_data = prod_data.sort_values(by="date").reset_index(drop=True)
-        
         target_rows = prod_data[prod_data["date"] == target_ts]
         if len(target_rows) == 0:
             return {"error": f"Target date {target_date} not found for product {product_id}."}
@@ -271,7 +275,7 @@ class AnomalyDetectionEngine:
                 self._detection_cache[cache_key] = result
         return result
 
-    def detect_category_anomalies(self, category: str, date: str, kpi: str = "revenue") -> List[Dict[str, Any]]:
+    def detect_category_anomalies(self, category: str, date: Optional[str] = None, kpi: str = "revenue") -> List[Dict[str, Any]]:
         """
         Runs anomaly detection across all products within a specific category.
         """
@@ -280,6 +284,14 @@ class AnomalyDetectionEngine:
             from src.api.dependencies import get_historical_df_from_db
             df_hist = get_historical_df_from_db(category=category)
             
+        if date is None:
+            cat_df = df_hist[df_hist["category"] == category].copy()
+            if len(cat_df) > 0:
+                cat_df["date"] = pd.to_datetime(cat_df["date"])
+                date = cat_df["date"].max().strftime("%Y-%m-%d")
+            else:
+                return []
+
         original_df = self.df_historical
         self.df_historical = df_hist
         try:
@@ -293,18 +305,23 @@ class AnomalyDetectionEngine:
         finally:
             self.df_historical = original_df
 
-    def get_top_products(self, date: str, kpi: str = "revenue") -> Dict[str, Any]:
+    def get_top_products(self, date: Optional[str] = None, kpi: str = "revenue") -> Dict[str, Any]:
         """
         Generates global anomaly ranking and risk profiles across all products for a specific date.
         """
-        cache_key = (date, kpi.lower())
-        if hasattr(self, "_ranking_cache") and cache_key in self._ranking_cache:
-            return self._ranking_cache[cache_key]
-            
         df_hist = self.df_historical
         if df_hist is None:
             from src.api.dependencies import get_historical_df_from_db
             df_hist = get_historical_df_from_db()
+            
+        if date is None:
+            df_hist_copy = df_hist.copy()
+            df_hist_copy["date"] = pd.to_datetime(df_hist_copy["date"])
+            date = df_hist_copy["date"].max().strftime("%Y-%m-%d")
+
+        cache_key = (date, kpi.lower())
+        if hasattr(self, "_ranking_cache") and cache_key in self._ranking_cache:
+            return self._ranking_cache[cache_key]
             
         original_df = self.df_historical
         self.df_historical = df_hist
@@ -323,3 +340,54 @@ class AnomalyDetectionEngine:
             return result
         finally:
             self.df_historical = original_df
+
+    def scan_anomalies(
+        self,
+        product_id: str,
+        lookback_days: int = 14,
+        kpi: str = "revenue"
+    ) -> Dict[str, Any]:
+        """
+        Scans the past `lookback_days` days in the time series for the given product,
+        detects anomalies on each day, and returns a summary of anomalous events.
+        """
+        df_hist = self.df_historical
+        if df_hist is None:
+            from src.api.dependencies import get_historical_df_from_db
+            df_hist = get_historical_df_from_db(product_id=product_id)
+            
+        prod_data = df_hist[df_hist["product_id"] == product_id].copy()
+        if len(prod_data) == 0:
+            return {"error": f"Product ID {product_id} not found."}
+            
+        prod_data["date"] = pd.to_datetime(prod_data["date"])
+        prod_data = prod_data.sort_values(by="date").reset_index(drop=True)
+        
+        # Get the range of dates to scan: the last `lookback_days` in the dataset
+        latest_date = prod_data["date"].max()
+        start_date = latest_date - pd.Timedelta(days=lookback_days - 1)
+        
+        scan_dates = prod_data[(prod_data["date"] >= start_date) & (prod_data["date"] <= latest_date)]["date"].tolist()
+        
+        anomalous_dates = []
+        for date_ts in scan_dates:
+            date_str = date_ts.strftime("%Y-%m-%d")
+            res = self.run_detection(product_id=product_id, target_date=date_str, kpi=kpi, skip_explanation=True)
+            if "error" not in res:
+                if res["status"] in ["warning", "high", "critical"] or res["severity_score"] >= 35.0:
+                    anomalous_dates.append({
+                        "date": date_str,
+                        "severity_score": res["severity_score"],
+                        "status": res["status"],
+                        "actual_value": res["actual_value"],
+                        "expected_value": res["expected_value"],
+                        "percentage_change": res["percentage_change"],
+                        "residual": res["residual"]
+                    })
+                    
+        return {
+            "product_id": product_id,
+            "lookback_days": lookback_days,
+            "kpi": kpi.upper(),
+            "anomalous_dates": anomalous_dates
+        }

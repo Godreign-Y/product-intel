@@ -252,3 +252,31 @@ def test_scenario_evaluate_batch_endpoint(client):
     for t in targets:
         assert t in first_res["kpis"]
         assert len(first_res["daily_comparison"][t]) == 5
+
+def test_anomaly_detect_auto_date(client):
+    # Omit target_date - should auto-resolve to the latest date
+    payload = {
+        "product_id": "P001",
+        "kpi": "revenue"
+    }
+    response = client.post("/api/v1/anomaly/detect", json=payload)
+    assert response.status_code == 200
+    data = response.json()
+    assert data["product_id"] == "P001"
+    assert data["target_date"] is not None
+    assert "severity_score" in data
+
+def test_anomaly_scan_endpoint(client):
+    # Scan the last 14 days
+    payload = {
+        "product_id": "P001",
+        "lookback_days": 14,
+        "kpi": "revenue"
+    }
+    response = client.post("/api/v1/anomaly/scan", json=payload)
+    assert response.status_code == 200
+    data = response.json()
+    assert data["product_id"] == "P001"
+    assert data["lookback_days"] == 14
+    assert "anomalous_dates" in data
+    assert isinstance(data["anomalous_dates"], list)

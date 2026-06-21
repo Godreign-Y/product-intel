@@ -42,6 +42,22 @@ class SentenceTransformerEncoder:
         # Resilient fallback encoder
         return self._encode_fallback(text)
 
+    def encode_batch(self, texts: list) -> list:
+        """
+        Encodes multiple texts into a list of 384 floats.
+        """
+        if not texts:
+            return []
+            
+        if not self.is_fallback and self.model is not None:
+            try:
+                embeddings = self.model.encode(texts, show_progress_bar=False)
+                return [emb.tolist() if hasattr(emb, "tolist") else list(emb) for emb in embeddings]
+            except Exception as e:
+                logger.error(f"Failed to run batch model encoder: {e}. Falling back to hash encoding.")
+                
+        return [self._encode_fallback(t) for t in texts]
+
     def _encode_fallback(self, text: str, dimensions: int = 384) -> list:
         """
         Generates a deterministic 384-dimensional normalized vector

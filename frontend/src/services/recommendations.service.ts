@@ -15,6 +15,13 @@ export const getAnomalyDetails = async (productId: string, targetDate: string, k
   });
 };
 
+export const scanProductHistory = async (productId: string, lookbackDays: number, kpi: string) => {
+  return apiClient<any>('/anomaly/scan', {
+    method: 'POST',
+    body: JSON.stringify({ product_id: productId, lookback_days: lookbackDays, kpi })
+  });
+};
+
 export const getRecommendations = async (productId: string | null, targetDate: string, kpi: string): Promise<RecommendationResponse> => {
   const report = await getTopAnomalies(targetDate, kpi);
   

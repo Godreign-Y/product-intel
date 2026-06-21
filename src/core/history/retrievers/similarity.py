@@ -1,6 +1,7 @@
 import numpy as np
 import json
 import os
+import re
 from typing import List, Dict, Any, Optional
 from sqlalchemy.orm import Session
 from sqlalchemy import or_
@@ -41,24 +42,72 @@ class SimilarityRetriever:
         filters: Optional[Dict[str, Any]] = None
     ) -> List[Dict[str, Any]]:
         """
-        Executes semantic search by encoding the query and calculating cosine similarity
-        over database records, applying metadata filters first.
+        Executes semantic search by encoding the query.
+        Uses native pgvector distance operator (<=>) on PostgreSQL/NeonDB for database-side similarity sorting,
+        falling back to in-memory numpy cosine similarity for SQLite.
         """
+        logger.info(f"Executing semantic search: Query='{query}', Limit={limit}, Filters={filters}")
+        
         # 1. Encode query
         query_vector = self.encoder.encode(query)
         
-        # 2. Build SQLAlchemy Query with metadata filters
+        # 2. Check database dialect
+        is_postgresql = False
+        try:
+            is_postgresql = self.db.bind.dialect.name == "postgresql"
+        except Exception:
+            pass
+            
+        if is_postgresql:
+            try:
+                # PostgreSQL with pgvector: order by cosine distance natively
+                stmt = self.db.query(ReportEmbedding)
+                
+                # Apply joins and filters
+                if filters:
+                    category = filters.get("category")
+                    exp_type = filters.get("type")
+                    outcome = filters.get("outcome")
+                    stmt = stmt.join(Report).join(Experiment)
+                    if category:
+                        stmt = stmt.filter(Experiment.category == category)
+                    if exp_type:
+                        stmt = stmt.filter(Experiment.type == exp_type)
+                    if outcome:
+                        stmt = stmt.filter(Experiment.outcome == outcome)
+                else:
+                    stmt = stmt.join(Report).join(Experiment)
+                
+                if HAS_PGVECTOR:
+                    distance = ReportEmbedding.embedding.cosine_distance(query_vector)
+                    stmt = stmt.add_columns(distance).order_by(distance).limit(limit)
+                    results_raw = stmt.all()
+                    
+                    results = []
+                    for row in results_raw:
+                        if isinstance(row, tuple):
+                            emb, dist = row
+                        else:
+                            emb = row
+                            dist = 0.0
+                        score = 1.0 - float(dist) if dist is not None else 1.0
+                        results.append({
+                            "score": round(score, 4),
+                            "report": emb.report,
+                            "experiment": emb.report.experiment
+                        })
+                    logger.info(f"PostgreSQL native pgvector search completed. Returning top {len(results)} matches.")
+                    return results
+            except Exception as e:
+                logger.warning(f"Native pgvector search failed: {e}. Falling back to in-memory cosine similarity.")
+
+        # 3. Fallback: In-memory cosine similarity (SQLite / Local)
         stmt = self.db.query(ReportEmbedding)
-        
         if filters:
             category = filters.get("category")
             exp_type = filters.get("type")
             outcome = filters.get("outcome")
-            
-            # Since Category and Type are stored on the parent Experiment model,
-            # we join them
             stmt = stmt.join(Report).join(Experiment)
-            
             if category:
                 stmt = stmt.filter(Experiment.category == category)
             if exp_type:
@@ -69,10 +118,10 @@ class SimilarityRetriever:
             stmt = stmt.join(Report).join(Experiment)
             
         embeddings_list = stmt.all()
+        logger.info(f"Loaded {len(embeddings_list)} candidate report embeddings for in-memory cosine similarity check.")
         if not embeddings_list:
             return []
             
-        # 3. Calculate Cosine Similarity
         results = []
         vecA = np.array(query_vector)
         normA = np.linalg.norm(vecA)
@@ -95,9 +144,10 @@ class SimilarityRetriever:
                 "experiment": emb.report.experiment
             })
             
-        # 4. Sort and limit
         results = sorted(results, key=lambda x: x["score"], reverse=True)
-        return results[:limit]
+        top_matches = results[:limit]
+        logger.info(f"In-memory semantic search completed. Found {len(results)} total matches. Top score: {top_matches[0]['score'] if top_matches else 'N/A'}")
+        return top_matches
 
     def find_similar_experiments(
         self, 
@@ -108,9 +158,12 @@ class SimilarityRetriever:
         """
         Finds past experiments with the same category and close parameters (e.g. price/discount overrides).
         """
+        logger.info(f"Finding similar experiments in category '{category}' matching features: {features}")
+        
         # Query experiments in the same category
         experiments = self.db.query(Experiment).filter(Experiment.category == category).all()
         if not experiments:
+            logger.info(f"No experiments found for category '{category}'. Falling back to search all experiments.")
             # Fallback to all if category has no matches
             experiments = self.db.query(Experiment).all()
             
@@ -140,16 +193,21 @@ class SimilarityRetriever:
             })
             
         scored = sorted(scored, key=lambda x: x["similarity_score"], reverse=True)
-        return scored[:limit]
+        top_scores = scored[:limit]
+        logger.info(f"Experiment similarity matching complete. Scored {len(scored)} candidates. Returning top {len(top_scores)} matches.")
+        return top_scores
 
     def extract_topic_insights(self, topic: str) -> Dict[str, Any]:
         """
         Checks KnowledgeBase cache. If missing, fetches relevant experiments,
         calls LLM to synthesize meta-learnings and failure patterns, and caches it.
         """
+        logger.info(f"Extracting topic insights for topic: '{topic}'")
+        
         # 1. Check cache
         cached = self.db.query(KnowledgeBase).filter(KnowledgeBase.pattern_type == topic).first()
         if cached:
+            logger.info(f"KnowledgeBase cache HIT for topic '{topic}'.")
             return {
                 "topic": topic,
                 "synthesized_rules": cached.synthesized_rules,
@@ -157,11 +215,14 @@ class SimilarityRetriever:
                 "cached": True
             }
             
+        logger.info(f"KnowledgeBase cache MISS for topic '{topic}'. Fetching relevant experiments via semantic search...")
+        
         # 2. Fetch reports/experiments matching topic keyword
         search_query = f"experiments and learnings related to {topic}"
         similar_reports = self.semantic_search(search_query, limit=10)
         
         if not similar_reports:
+            logger.warning(f"No historical experiments found relating to topic '{topic}'. Returning empty fallback rules.")
             return {
                 "topic": topic,
                 "synthesized_rules": {
@@ -210,6 +271,10 @@ class SimilarityRetriever:
             )
             
             try:
+                logger.info(f"Synthesizing meta-learnings for topic '{topic}' using LLM...")
+                logger.info(f"LLM System Prompt:\n{system_prompt}\n")
+                logger.info(f"LLM User Prompt:\n{user_prompt}\n")
+                
                 response = self.client.chat.completions.create(
                     model=self.model,
                     messages=[
@@ -220,30 +285,73 @@ class SimilarityRetriever:
                     max_tokens=600
                 )
                 raw_text = response.choices[0].message.content.strip()
-                json_match = re.search(r"\{.*\}", raw_text, re.DOTALL) if "re" in globals() else None
+                logger.info(f"LLM Raw Text Response:\n{raw_text}\n")
+                
+                # Clean markdown wrapper blocks
+                cleaned_text = raw_text.strip()
+                if cleaned_text.startswith("```"):
+                    cleaned_text = re.sub(r"^```(?:json)?\s*", "", cleaned_text)
+                    cleaned_text = re.sub(r"\s*```$", "", cleaned_text)
+                    cleaned_text = cleaned_text.strip()
+                
+                json_match = re.search(r"\{.*\}", cleaned_text, re.DOTALL)
                 if json_match:
                     synthesized = json.loads(json_match.group(0))
                 else:
-                    import re as re_lib
-                    match = re_lib.search(r"\{.*\}", raw_text, re_lib.DOTALL)
-                    synthesized = json.loads(match.group(0)) if match else json.loads(raw_text)
+                    synthesized = json.loads(cleaned_text)
+                    
+                logger.info(f"LLM Parsed Synthesized Object:\n{json.dumps(synthesized, indent=2)}\n")
             except Exception as e:
                 logger.error(f"LLM insight synthesis failed: {e}. Using template fallback.")
                 synthesized = self._get_fallback_synthesis(topic, experiments_data)
         else:
+            logger.info("No NVIDIA NIM API client configured. Using deterministic fallback synthesis.")
             synthesized = self._get_fallback_synthesis(topic, experiments_data)
             
         synthesized["success_rate_pct"] = round(success_rate, 2)
         
+        # Determine driver, segment, and season from topic keyword
+        topic_lower = topic.lower()
+        
+        driver_val = None
+        if "discount" in topic_lower:
+            driver_val = "discount_pct"
+        elif "price" in topic_lower or "pricing" in topic_lower:
+            driver_val = "avg_selling_price"
+        elif "shipping" in topic_lower:
+            driver_val = "shipping_fee"
+        elif "spend" in topic_lower or "marketing" in topic_lower:
+            driver_val = "marketing_spend"
+            
+        segment_val = None
+        for cat in ["haircare", "makeup", "skincare", "beauty"]:
+            if cat in topic_lower:
+                segment_val = cat.capitalize()
+                break
+                
+        season_val = None
+        for s in ["winter", "spring", "summer", "fall"]:
+            if s in topic_lower:
+                season_val = s.capitalize()
+                break
+
         # 5. Cache to KnowledgeBase
+        confidence_score = round(float(0.5 + (success_rate / 200.0)), 2)
         kb_entry = KnowledgeBase(
             pattern_type=topic,
             query_context=search_query,
             synthesized_rules=synthesized,
-            confidence_score=round(float(0.5 + (success_rate / 200.0)), 2)
+            confidence_score=confidence_score,
+            driver=driver_val,
+            segment=segment_val,
+            season=season_val,
+            outcome_score=round(float(success_rate), 2),
+            confidence=confidence_score
         )
         self.db.add(kb_entry)
         self.db.commit()
+        
+        logger.info(f"Topic insights cached in KnowledgeBase for topic '{topic}' (Confidence: {confidence_score}).")
         
         return {
             "topic": topic,
@@ -274,3 +382,4 @@ class SimilarityRetriever:
             "frequent_failures": failures[:3] if failures else ["No major failures recorded for this topic."],
             "successful_strategies": successes[:3] if successes else ["No consistent positive strategies recorded for this topic."]
         }
+

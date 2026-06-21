@@ -73,6 +73,15 @@ class ExperimentResponse(BaseModel):
     improvement_pct: Optional[float] = None
     outcome: str
     confidence_score: float
+    
+    # Additional fields from experiment_dataset.csv
+    subcategory: Optional[str] = None
+    changed_features: Optional[Dict[str, Any]] = None
+    primary_metric: Optional[str] = None
+    expected_direction: Optional[str] = None
+    observed_effect_pct: Optional[float] = None
+    result: Optional[str] = None
+    notes: Optional[str] = None
 
     class Config:
         from_attributes = True

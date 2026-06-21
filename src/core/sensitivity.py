@@ -20,7 +20,46 @@ class SensitivityEngine:
         """
         Estimates the sensitivity (elasticity, expected absolute impact, and statistical confidence)
         of cumulative predicted Revenue to changes in: Marketing, Discount, Shipping, Price, Inventory, and Retention (Return).
+        First tries to pull pre-computed elasticity profiles from history patterns, falling back to forecaster perturbations.
         """
+        # Try to retrieve pre-computed elasticity profiles from History DB
+        precomputed_results = {}
+        try:
+            from src.core.history.storage.database import SessionLocal
+            from src.core.history.manager import HistoryManager
+            db = SessionLocal()
+            try:
+                hm = HistoryManager(db)
+                driver_mapping = {
+                    "discount": ("discount_pct", "conversion_rate"),
+                    "price": ("avg_selling_price", "orders"),
+                    "shipping": ("shipping_fee", "conversion_rate"),
+                    "marketing": ("marketing_spend", "revenue")
+                }
+                
+                for key, (dr, kp) in driver_mapping.items():
+                    prof = hm.get_elasticity_profile(dr, kp, product_id)
+                    if prof and prof.get("n_valid_obs", 0) > 0:
+                        coef = prof["elasticity_coef"]
+                        # expected impact based on coef scaling
+                        # baseline revenue as scaling reference
+                        prod_data = historical_df[historical_df["product_id"] == product_id].copy()
+                        if not prod_data.empty:
+                            last_rev = float(prod_data.iloc[-1]["revenue"])
+                            expected_impact = coef * last_rev * horizon_days * 0.10 # scaled for +10% driver shift
+                        else:
+                            expected_impact = coef * 100.0
+                            
+                        precomputed_results[key] = {
+                            "elasticity_score": round(coef, 4),
+                            "expected_impact": round(expected_impact, 2),
+                            "confidence": prof["confidence"]
+                        }
+            finally:
+                db.close()
+        except Exception as e:
+            logger.warning(f"Failed to lookup pre-computed elasticity: {e}. Falling back to live perturbations.")
+
         # 1. Filter and extract baseline variables for the product
         prod_data = historical_df[historical_df["product_id"] == product_id].copy()
         if len(prod_data) == 0:
@@ -41,6 +80,7 @@ class SensitivityEngine:
         base_price = float(last_row["avg_selling_price"])
         base_inventory = float(last_row["inventory_available"])
         base_retention = float(last_row["retention_rate"])
+
         
         # 2. Run Baseline Forecast
         baseline_forecast = self.forecaster.forecast(
@@ -101,6 +141,10 @@ class SensitivityEngine:
         
         results = {}
         for key, p_info in perturbations.items():
+            if key in precomputed_results:
+                results[key] = precomputed_results[key]
+                continue
+                
             features_override = p_info["features"]
             
             # Predict perturbed forecast
@@ -135,3 +179,4 @@ class SensitivityEngine:
             }
             
         return results
+

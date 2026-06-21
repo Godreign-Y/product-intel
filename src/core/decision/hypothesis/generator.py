@@ -119,13 +119,43 @@ class HypothesisGenerator:
         # 1. Parse target KPI
         target_kpi = self._determine_target_kpi(query)
         
-        # 2. Retrieve SHAP values
-        shap_importance = self._get_shap_features(target_kpi)
-        shap_summary = "\n".join([f"- {f['clean_name']} (SHAP Impact: {f['importance_value']})" for f in shap_importance[:5]])
+        # 2. Retrieve SHAP values & past experiments (aggregated if query is objective-agnostic)
+        q_lower = query.lower()
+        is_explicit = any(k in q_lower for k in ["revenue", "profit", "margin", "conversion", "checkout", "ctr", "order", "sales volume"])
         
-        # 3. Retrieve past experiments
-        past_exps = self._get_past_experiments(target_kpi)
-        past_exps_summary = "\n".join([f"- {e}" for e in past_exps[:5]])
+        if not is_explicit:
+            shap_importance = []
+            seen_features = set()
+            for kpi in ["revenue", "profit", "orders", "conversion_rate"]:
+                kpi_shap = self._get_shap_features(kpi)
+                for feat in kpi_shap:
+                    feat_name = feat["clean_name"]
+                    if feat_name not in seen_features:
+                        seen_features.add(feat_name)
+                        feat_with_tag = feat.copy()
+                        feat_with_tag["clean_name"] = f"{feat_name} (drives {kpi.replace('_', ' ')})"
+                        shap_importance.append(feat_with_tag)
+                        
+            # Sort by absolute SHAP impact value
+            shap_importance.sort(key=lambda x: abs(x.get("importance_value", 0.0)), reverse=True)
+            
+            past_exps = []
+            for kpi in ["revenue", "profit", "orders", "conversion_rate"]:
+                past_exps.extend(self._get_past_experiments(kpi))
+                
+            seen_exps = set()
+            unique_past_exps = []
+            for e in past_exps:
+                if e not in seen_exps:
+                    seen_exps.add(e)
+                    unique_past_exps.append(e)
+            past_exps = unique_past_exps
+        else:
+            shap_importance = self._get_shap_features(target_kpi)
+            past_exps = self._get_past_experiments(target_kpi)
+            
+        shap_summary = "\n".join([f"- {f['clean_name']} (SHAP Impact: {f['importance_value']})" for f in shap_importance[:8]])
+        past_exps_summary = "\n".join([f"- {e}" for e in past_exps[:8]])
         
         # 4. Retrieve KB rules
         kb_rules = self._get_knowledge_base_rules()
@@ -140,7 +170,7 @@ class HypothesisGenerator:
             
         if not candidates:
             logger.info("Using template-based candidates fallback.")
-            candidates = self._generate_fallback_candidates(query, target_kpi)
+            candidates = self._generate_fallback_candidates(query, target_kpi, context)
 
         # 6. Score and Rank candidates
         scored_candidates = []
@@ -214,7 +244,7 @@ class HypothesisGenerator:
                     {"role": "user", "content": user_prompt}
                 ],
                 temperature=0.3,
-                max_tokens=1500
+                max_tokens=2000
             )
             raw_text = response.choices[0].message.content.strip()
             
@@ -231,18 +261,28 @@ class HypothesisGenerator:
             logger.error(f"LLM candidate hypothesis generation failed: {e}")
         return []
 
-    def _generate_fallback_candidates(self, query: str, target_kpi: str) -> List[Dict[str, Any]]:
+    def _generate_fallback_candidates(self, query: str, target_kpi: str, context: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
         """
         Template-based fallback generating 10 structured candidates across variables.
+        Enriches descriptions with actual KPI values from context when available.
         """
         q = query.lower()
         candidates = []
+
+        # Extract KPI values for enriched descriptions
+        kpis = (context or {}).get("kpis", {})
+        revenue_str = f"${kpis.get('total_revenue', 0):,.0f}" if kpis.get('total_revenue') else "current levels"
+        profit_str = f"${kpis.get('total_profit', 0):,.0f}" if kpis.get('total_profit') else "current levels"
+        orders_str = f"{kpis.get('total_orders', 0):,}" if kpis.get('total_orders') else "current volume"
+        conv_str = f"{kpis.get('mean_conversion_rate', 0):.2%}" if kpis.get('mean_conversion_rate') else "current rate"
+        price_str = f"${kpis.get('avg_price', 0):,.2f}" if kpis.get('avg_price') else "current price"
+        disc_str = f"{kpis.get('avg_discount_pct', 0):.1f}%" if kpis.get('avg_discount_pct') else "current discount"
 
         # 1. Price candidates
         candidates.append({
             "hypothesis_id": "HYP_PRI_01",
             "title": "Price increases decrease Customer Conversion",
-            "description": "Increasing the average selling price creates consumer friction and decreases checkout conversion rates.",
+            "description": f"Current avg selling price is {price_str} with conversion at {conv_str}. Increasing the average selling price creates consumer friction and decreases checkout conversion rates.",
             "generated_from": "Correlation Heuristics",
             "affected_kpis": ["mean_conversion_rate"],
             "driver_variable": "avg_selling_price",
@@ -251,7 +291,7 @@ class HypothesisGenerator:
         candidates.append({
             "hypothesis_id": "HYP_PRI_02",
             "title": "Optimal selling price drives higher Revenue",
-            "description": "Adjusting the selling price to match product elasticity bounds optimizes daily revenue return.",
+            "description": f"Current revenue is {revenue_str} at avg price {price_str}. Adjusting the selling price to match product elasticity bounds optimizes daily revenue return.",
             "generated_from": "Knowledge Base Pattern",
             "affected_kpis": ["total_revenue"],
             "driver_variable": "avg_selling_price",
@@ -262,7 +302,7 @@ class HypothesisGenerator:
         candidates.append({
             "hypothesis_id": "HYP_DIS_01",
             "title": "Higher discounts increase Order Volume",
-            "description": "Increasing the average discount percentage drives higher sales volumes but impacts profitability.",
+            "description": f"Current discount is {disc_str} with {orders_str} orders. Increasing the average discount percentage drives higher sales volumes but impacts profitability.",
             "generated_from": "Historical Experiments",
             "affected_kpis": ["total_orders", "total_revenue"],
             "driver_variable": "discount_pct",
@@ -271,7 +311,7 @@ class HypothesisGenerator:
         candidates.append({
             "hypothesis_id": "HYP_DIS_02",
             "title": "Excessive discounts erode net Profitability",
-            "description": "Excessive discounting beyond product margin elasticity limits results in net profit deterioration.",
+            "description": f"Current profit is {profit_str} with discount at {disc_str}. Excessive discounting beyond product margin elasticity limits results in net profit deterioration.",
             "generated_from": "Sensitivity Analysis",
             "affected_kpis": ["total_profit"],
             "driver_variable": "discount_pct",
@@ -381,17 +421,24 @@ class HypothesisGenerator:
         confidence_boost = min(0.30, matching_past_exps * 0.10)
         confidence = min(1.0, confidence + confidence_boost)
 
-        # 3. Business Impact
-        # Boost impact if we are trying to resolve an active trend/anomaly
+        # 3. Business Impact — data-driven using correlation signals
         trends = context.get("trends", {})
         revenue_trend = trends.get("revenue_trend", "stable")
+        anomalies = context.get("anomalies", [])
         
+        # Compute base impact from SHAP correlation alignment
         impact = 0.50
-        if revenue_trend == "decreasing" and driver == "marketing_spend":
-            impact = 0.85
-        elif revenue_trend == "decreasing" and driver == "discount_pct":
-            impact = 0.80
-        elif context.get("anomalies") and driver == "shipping_fee":
+        for feat in shap_importance[:5]:
+            if driver in feat.get("feature", ""):
+                # Scale impact by the SHAP importance value (normalized)
+                shap_val = abs(feat.get("importance_value", 0.0))
+                impact = min(0.95, 0.50 + shap_val * 0.5)
+                break
+        
+        # Boost for matching trend direction
+        if revenue_trend == "decreasing" and driver in ("marketing_spend", "discount_pct"):
+            impact = max(impact, 0.80)
+        elif anomalies and driver == "shipping_fee":
             impact = 0.75
 
         # 4. Explainability

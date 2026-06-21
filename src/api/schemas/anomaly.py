@@ -3,16 +3,16 @@ from typing import Dict, Any, List, Optional
 
 class AnomalyRequest(BaseModel):
     product_id: str = Field(..., example="P001")
-    target_date: str = Field(..., example="2025-06-15")
+    target_date: Optional[str] = Field(None, example="2025-06-15")
     kpi: str = Field("revenue", example="revenue")
 
 class CategoryAnomalyRequest(BaseModel):
     category: str = Field(..., example="Skincare")
-    target_date: str = Field(..., example="2025-06-15")
+    target_date: Optional[str] = Field(None, example="2025-06-15")
     kpi: str = Field("revenue", example="revenue")
 
 class GlobalAnomalyRequest(BaseModel):
-    target_date: str = Field(..., example="2025-06-15")
+    target_date: Optional[str] = Field(None, example="2025-06-15")
     kpi: str = Field("revenue", example="revenue")
 
 class AnomalyResponse(BaseModel):
@@ -62,3 +62,17 @@ class GlobalRankingResponse(BaseModel):
     most_unusual_products: List[ProductRankingDetail]
     products_recovering: List[ProductRankingDetail]
     products_improving: List[ProductRankingDetail]
+
+class AnomalyScanRequest(BaseModel):
+    product_id: str = Field(..., example="P001")
+    lookback_days: int = Field(14, example=14, description="Lookback window size (e.g. 14 or 30 days)")
+    kpi: str = Field("revenue", example="revenue")
+
+class AnomalyScanResponse(BaseModel):
+    product_id: str
+    lookback_days: int
+    kpi: str
+    anomalous_dates: List[Dict[str, Any]] = Field(
+        ...,
+        description="List of detected anomalies with their date, severity, and details"
+    )

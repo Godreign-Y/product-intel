@@ -5,17 +5,25 @@ from openai import OpenAI
 from dotenv import load_dotenv
 from typing import Dict, Any, List, Optional
 
+from src.core.decision.config_loader import load_decision_config
+
 class ExplanationEngine:
     def __init__(self):
         load_dotenv()
         self.api_key = os.getenv("NVIDIA_API_KEY")
         self.base_url = "https://integrate.api.nvidia.com/v1"
-        self.model = "meta/llama-3.1-70b-instruct"
+        self.model = "meta/llama-3.1-8b-instruct"
+
+        cfg = load_decision_config()
+        exp_cfg = cfg.get("explanation", {})
+        conf_thresh = cfg.get("confidence_thresholds", {})
+        self.llm_timeout = exp_cfg.get("llm_timeout_seconds", 30.0)
+        self.high_conf_threshold = conf_thresh.get("high", 0.70)
         
         if not self.api_key:
             self.client = None
         else:
-            self.client = OpenAI(base_url=self.base_url, api_key=self.api_key, timeout=10.0)
+            self.client = OpenAI(base_url=self.base_url, api_key=self.api_key, timeout=self.llm_timeout)
 
     def generate_explanation(
         self, 
@@ -24,17 +32,21 @@ class ExplanationEngine:
     ) -> str:
         """
         Synthesizes a business-friendly explanation in Markdown, calling LLM or falling back to a structured template.
+        Uses hypothesis_id keyed lookup for safe correlation between ranked items and recommendations.
         """
         if not ranked_items:
             return "# Decision Engine Explanation\n\nNo active business hypotheses generated for this query."
 
+        # Build hypothesis_id-keyed recommendation lookup (replaces fragile index-based correlation)
+        rec_map = {r["hypothesis_id"]: r for r in recommendations}
+
         # Compile summaries for the prompt/template
         summary_data = []
-        for idx, item in enumerate(ranked_items):
+        for item in ranked_items:
             hypo = item["hypothesis"]
             val = item["validation"]
             conf = item["confidence"]
-            rec = recommendations[idx] if idx < len(recommendations) else {}
+            rec = rec_map.get(hypo["hypothesis_id"], {})
             
             summary_data.append({
                 "hypothesis": hypo["title"],
@@ -43,7 +55,8 @@ class ExplanationEngine:
                 "expected_impact": rec.get("expected_kpi_improvement", {}),
                 "action_recommended": rec.get("recommendation_text", ""),
                 "needs_ab_test": rec.get("needs_experimentation", False),
-                "rollback_strategy": rec.get("rollback_strategy", "")
+                "rollback_strategy": rec.get("rollback_strategy", ""),
+                "risk_assessment": rec.get("risk_assessment", {})
             })
 
         if not self.client:
@@ -57,6 +70,7 @@ class ExplanationEngine:
             "1. Executive Summary: High-level answers to the business question.\n"
             "2. Validated Hypotheses: Details of each hypothesis, supporting metrics, and confidence level.\n"
             "3. Action Recommendations: Practical next steps (rollouts or A/B tests) and rollback guidelines.\n"
+            "4. Risk Matrix: For each recommendation, show volatility, reversibility, and data confidence.\n"
             "Make the tone strictly professional, objective, and evidence-focused. Do not add conversational fluff at the beginning or end."
         )
         
@@ -82,12 +96,13 @@ class ExplanationEngine:
     def _generate_fallback_explanation(self, summary_data: List[Dict[str, Any]]) -> str:
         """
         Generates a robust local template if the LLM is unreachable.
+        Now includes a Risk Matrix section using risk_assessment data.
         """
         md = "# AI Decision Intelligence Engine - Analytical Brief\n\n"
         md += "## 1. Executive Summary\n"
         md += f"We evaluated the business query and validated **{len(summary_data)}** hypotheses using predictive model simulations, elasticity analyses, and correlation checks. "
         
-        high_conf = [s for s in summary_data if s["confidence_score"] >= 0.70]
+        high_conf = [s for s in summary_data if s["confidence_score"] >= self.high_conf_threshold]
         if high_conf:
             md += f"We identified **{len(high_conf)}** recommendations with high confidence supporting immediate implementation.\n\n"
         else:
@@ -109,5 +124,24 @@ class ExplanationEngine:
             md += f"* **Rationale**: {s['description']}\n"
             md += f"* **Tactical Action**: {s['action_recommended']}\n"
             md += f"* **Rollback Blueprint**: {s['rollback_strategy']}\n"
+
+        # 4. Risk Matrix — new section using risk_assessment data
+        has_risks = any(s.get("risk_assessment") for s in summary_data)
+        if has_risks:
+            md += "\n## 4. Risk Matrix\n\n"
+            md += "| Hypothesis | Volatility | Reversibility | Data Confidence | Impact Magnitude |\n"
+            md += "| :--- | :---: | :---: | :---: | :---: |\n"
+            for s in summary_data:
+                risk = s.get("risk_assessment", {})
+                if risk:
+                    data_conf = risk.get('data_confidence', 'N/A')
+                    data_conf_str = f"{data_conf:.2f}" if isinstance(data_conf, (int, float)) else str(data_conf)
+                    md += (
+                        f"| **{s['hypothesis']}** "
+                        f"| {risk.get('volatility', 'N/A')} "
+                        f"| {risk.get('reversibility', 'N/A')} "
+                        f"| {data_conf_str} "
+                        f"| {risk.get('impact_magnitude', 'N/A')}% |\n"
+                    )
             
         return md

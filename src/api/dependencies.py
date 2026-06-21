@@ -80,45 +80,53 @@ def get_historical_df_from_db(
     db_url = os.getenv("NEON_URL") or os.getenv("DATABASE_URL")
     if db_url and not db_url.startswith("sqlite"):
         try:
-            from src.core.history.storage.database import engine
-            from sqlalchemy import text
-            
+            from src.core.history.storage.database import get_neon_connection
+
             query = "SELECT * FROM product_performance WHERE 1=1"
-            params = {}
-            
+            params = []
+
             if product_id:
-                query += " AND product_id = :product_id"
-                params["product_id"] = product_id
-                
+                query += " AND product_id = %s"
+                params.append(product_id)
+
             if category:
-                query += " AND category = :category"
-                params["category"] = category
-                
+                query += " AND category = %s"
+                params.append(category)
+
             if start_date:
                 parsed_start = _safe_date(start_date)
                 if parsed_start is not None:
-                    query += " AND date >= :start_date"
-                    params["start_date"] = parsed_start.strftime("%Y-%m-%d")
-                
+                    query += " AND date >= %s"
+                    params.append(parsed_start.strftime("%Y-%m-%d"))
+
             if end_date:
                 parsed_end = _safe_date(end_date)
                 if parsed_end is not None:
-                    query += " AND date <= :end_date"
-                    params["end_date"] = parsed_end.strftime("%Y-%m-%d")
-            
-            logger.info(f"Executing dynamic query on database: {query} with params: {params}")
-            
-            df = pd.read_sql(text(query), con=engine, params=params)
-            
-            if not df.empty:
-                df["date"] = pd.to_datetime(df["date"])
-                if "id" in df.columns:
-                    df = df.drop(columns=["id"])
-                df = df.sort_values(by=["product_id", "date"]).reset_index(drop=True)
-                return df
-            else:
-                logger.warning("Database query returned empty DataFrame. Falling back to CSV...")
-                return get_historical_df_from_csv(start_date, end_date, product_id, category)
+                    query += " AND date <= %s"
+                    params.append(parsed_end.strftime("%Y-%m-%d"))
+
+            logger.info(f"Executing dynamic query on Neon DB: {query} with params: {params}")
+
+            conn = get_neon_connection()
+            try:
+                with conn.cursor() as cur:
+                    cur.execute(query, params)
+                    columns = [desc[0] for desc in cur.description] if cur.description else []
+                    rows = cur.fetchall()
+
+                df = pd.DataFrame(rows, columns=columns)
+
+                if not df.empty:
+                    df["date"] = pd.to_datetime(df["date"])
+                    if "id" in df.columns:
+                        df = df.drop(columns=["id"])
+                    df = df.sort_values(by=["product_id", "date"]).reset_index(drop=True)
+                    return df
+                else:
+                    logger.warning("Database query returned empty DataFrame. Falling back to CSV...")
+                    return get_historical_df_from_csv(start_date, end_date, product_id, category)
+            finally:
+                conn.close()
         except Exception as e:
             logger.error(f"Database dynamic query failed: {e}. Falling back to CSV...")
             return get_historical_df_from_csv(start_date, end_date, product_id, category)
@@ -164,12 +172,16 @@ def get_max_date_from_db() -> pd.Timestamp:
     db_url = os.getenv("NEON_URL") or os.getenv("DATABASE_URL")
     if db_url and not db_url.startswith("sqlite"):
         try:
-            from src.core.history.storage.database import engine
-            from sqlalchemy import text
-            with engine.connect() as conn:
-                res = conn.execute(text("SELECT MAX(date) FROM product_performance")).scalar()
-                if res:
-                    return pd.to_datetime(res)
+            from src.core.history.storage.database import get_neon_connection
+            conn = get_neon_connection()
+            try:
+                with conn.cursor() as cur:
+                    cur.execute("SELECT MAX(date) FROM product_performance")
+                    res = cur.fetchone()
+                if res and res[0] is not None:
+                    return pd.to_datetime(res[0])
+            finally:
+                conn.close()
         except Exception as e:
             logger.error(f"Failed to get max date from db: {e}")
     try:
