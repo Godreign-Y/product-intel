@@ -293,6 +293,7 @@ def load_app_state(models_dir: str = "models", preprocessor_path: str = "models/
                     "anomaly_engine": AppState.anomaly_engine,
                     "history_encoder": AppState.history_encoder,
                     "nl2sql_engine": AppState.nl2sql_engine,
+                    "llm_client": AppState.llm_client,
                 },
             )
     except Exception as e:

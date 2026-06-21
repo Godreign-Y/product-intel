@@ -2,9 +2,9 @@ import os
 import json
 import re
 import datetime
-from openai import OpenAI
-from dotenv import load_dotenv
 from typing import Dict, Any, List, Optional
+
+from src.core.llm import LLMClient, get_llm_client
 from src.utils.logger import setup_logger
 
 logger = setup_logger("hypothesis_generator")
@@ -116,24 +116,14 @@ class HypothesisGenerator:
         db: Optional[Any] = None, 
         forecaster: Optional[Any] = None, 
         explainer: Optional[Any] = None, 
-        history_manager: Optional[Any] = None
+        history_manager: Optional[Any] = None,
+        llm_client: Optional[LLMClient] = None,
     ):
         self.db = db
         self.forecaster = forecaster
         self.explainer = explainer
         self.history_manager = history_manager
-
-        # Initialize API client for Llama 3.1 instruct model via NVIDIA NIM
-        load_dotenv()
-        self.api_key = os.getenv("NVIDIA_API_KEY")
-        self.base_url = "https://integrate.api.nvidia.com/v1"
-        self.model = "meta/llama-3.1-70b-instruct"
-        
-        if not self.api_key:
-            logger.warning("NVIDIA_API_KEY not found in environment variables. HypothesisGenerator will default to rule-based fallback candidates.")
-            self.client = None
-        else:
-            self.client = OpenAI(base_url=self.base_url, api_key=self.api_key, timeout=None)
+        self.llm_client = llm_client or get_llm_client()
 
         from src.core.history.embeddings.encoder import SentenceTransformerEncoder
         if history_manager and hasattr(history_manager, "encoder") and history_manager.encoder:
@@ -265,11 +255,9 @@ class HypothesisGenerator:
         kb_rules_summary = "\n".join([f"- {r}" for r in kb_rules[:5]])
 
         # 3. Generate raw candidates
-        raw_candidates = []
-        if self.client:
-            raw_candidates = self._generate_llm_candidates(
-                query, target_kpi, shap_summary, past_exps_summary, kb_rules_summary, context
-            )
+        raw_candidates = self._generate_llm_candidates(
+            query, target_kpi, shap_summary, past_exps_summary, kb_rules_summary, context
+        )
         if not raw_candidates:
             raw_candidates = self._generate_fallback_candidates(query, target_kpi, context)
 
@@ -539,21 +527,19 @@ class HypothesisGenerator:
             f"Business Knowledge Base Rules:\n{kb_rules_summary or 'No rules cached.'}\n"
         )
 
-        logger.info(f"_generate_llm_candidates: Requesting NVIDIA NIM model '{self.model}' with prompt length={len(user_prompt)}")
+        logger.info(f"_generate_llm_candidates: Requesting LLM with prompt length={len(user_prompt)}")
         try:
-            response = self.client.chat.completions.create(
-                model=self.model,
+            raw_text = self.llm_client.generate(
                 messages=[
                     {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": user_prompt}
+                    {"role": "user", "content": user_prompt},
                 ],
                 temperature=0.3,
-                max_tokens=2000
+                max_tokens=2000,
+                model_tier="capable",
             )
-            raw_text = response.choices[0].message.content.strip()
             logger.debug(f"_generate_llm_candidates: Raw LLM response received:\n{raw_text}")
             
-            # Extract JSON list
             json_match = re.search(r"\[.*\]", raw_text, re.DOTALL)
             if json_match:
                 data = json.loads(json_match.group(0))

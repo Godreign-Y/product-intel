@@ -30,11 +30,11 @@ class DecisionManager:
         sensitivity_engine: SensitivityEngine,
         simulator: ScenarioSimulator,
         history_manager: Optional[Any] = None,
-        explainer: Optional[Any] = None
+        explainer: Optional[Any] = None,
+        llm_client: Optional[Any] = None,
     ):
         self.db = db
         
-        # Fallback to AppState if explainer is not provided directly
         if explainer is None:
             try:
                 from src.api.dependencies import AppState
@@ -43,13 +43,18 @@ class DecisionManager:
             except ImportError:
                 logger.warning("Failed importing AppState fallback for explainer in DecisionManager.")
                 pass
+
+        if llm_client is None:
+            from src.core.llm import get_llm_client
+            llm_client = get_llm_client()
                 
         self.context_engine = ContextEngine(db)
         self.hypo_generator = HypothesisGenerator(
             db=db,
             forecaster=forecaster,
             explainer=explainer,
-            history_manager=history_manager
+            history_manager=history_manager,
+            llm_client=llm_client,
         )
         self.evidence_retriever = EvidenceRetriever(db, history_manager)
         self.validator = ValidationEngine(df_historical, forecaster, sensitivity_engine, simulator)
@@ -57,7 +62,7 @@ class DecisionManager:
         self.ranker = HypothesisRanker()
         self.rec_engine = RecommendationEngine()
         self.planner = ExperimentPlanner()
-        self.explainer = ExplanationEngine()
+        self.explainer = ExplanationEngine(llm_client=llm_client)
         self.df_historical = df_historical
         logger.info("Successfully initialized DecisionManager with all sub-engines.")
 
@@ -81,6 +86,14 @@ class DecisionManager:
         """
         logger.info(f"process_decision_flow: Commencing intelligence loop for product_id={product_id}, session_id={session_id}")
         logger.info(f"process_decision_flow: Query: '{query}'")
+        try:
+            return self._process_decision_flow_body(query, product_id, session_id)
+        except Exception as e:
+            self.db.rollback()
+            logger.error(f"process_decision_flow failed: {e}")
+            raise
+
+    def _process_decision_flow_body(self, query: str, product_id: str = "P001", session_id: Optional[str] = None) -> Dict[str, Any]:
         
         # Parse query shock percentage and direction
         import re

@@ -35,7 +35,7 @@ def _forecast(params: dict[str, Any], engines: dict[str, Any]) -> dict[str, Any]
     df = _get_data(params, engines)
     forecast_df = engines["forecaster"].forecast(
         historical_df=df,
-        product_id=params.get("product_id", "P001"),
+        product_id=params["product_id"],
         horizon_days=int(params.get("horizon_days", 30)),
     )
     records = []
@@ -47,7 +47,7 @@ def _forecast(params: dict[str, Any], engines: dict[str, Any]) -> dict[str, Any]
             "orders": round(float(row["orders"]), 2),
         })
     return {
-        "product_id": params.get("product_id", "P001"),
+        "product_id": params["product_id"],
         "horizon_days": int(params.get("horizon_days", 30)),
         "forecast_total_revenue": round(float(forecast_df["revenue"].sum()), 2),
         "forecast_total_profit": round(float(forecast_df["profit"].sum()), 2),
@@ -61,9 +61,9 @@ def _explain(params: dict[str, Any], engines: dict[str, Any]) -> dict[str, Any]:
     df = _get_data(params, engines)
     return engines["explainer"].explain_prediction(
         historical_df=df,
-        product_id=params.get("product_id", "P001"),
+        product_id=params["product_id"],
         target_metric=params.get("target_metric", "revenue"),
-        date=params.get("date", str(df["date"].max().date()) if not df.empty else "2025-01-05"),
+        date=params["date"],
     )
 
 
@@ -84,7 +84,7 @@ def _simulate(params: dict[str, Any], engines: dict[str, Any]) -> dict[str, Any]
         changes = [c.strip() for c in changes.split(",")]
     return engines["simulator"].evaluate_scenario(
         historical_df=df,
-        product_id=params.get("product_id", "P001"),
+        product_id=params["product_id"],
         horizon_days=int(params.get("horizon_days", 30)),
         changes=changes,
     )
@@ -95,7 +95,7 @@ def _optimize(params: dict[str, Any], engines: dict[str, Any]) -> dict[str, Any]
     df = _get_data(params, engines)
     return engines["optimizer"].optimize_parameters(
         historical_df=df,
-        product_id=params.get("product_id", "P001"),
+        product_id=params["product_id"],
         horizon_days=int(params.get("horizon_days", 30)),
         target_metric=params.get("target_metric", "revenue"),
         max_discount_pct=float(params.get("max_discount_pct", 0.30)),
@@ -108,7 +108,7 @@ def _sensitivity(params: dict[str, Any], engines: dict[str, Any]) -> dict[str, A
     df = _get_data(params, engines)
     return engines["sensitivity_engine"].calculate_sensitivity(
         historical_df=df,
-        product_id=params.get("product_id", "P001"),
+        product_id=params["product_id"],
         horizon_days=int(params.get("horizon_days", 30)),
     )
 
@@ -128,8 +128,8 @@ def _analytics(method_name: str):
 def _anomaly_detect(params: dict[str, Any], engines: dict[str, Any]) -> dict[str, Any]:
     """Run anomaly detection."""
     return engines["anomaly_engine"].run_detection(
-        product_id=params.get("product_id", "P001"),
-        target_date=params.get("target_date", "2025-01-05"),
+        product_id=params["product_id"],
+        target_date=params["target_date"],
         kpi=params.get("kpi", "revenue"),
     )
 
@@ -137,7 +137,7 @@ def _anomaly_detect(params: dict[str, Any], engines: dict[str, Any]) -> dict[str
 def _anomaly_rank(params: dict[str, Any], engines: dict[str, Any]) -> dict[str, Any]:
     """Run anomaly ranking."""
     return engines["anomaly_engine"].get_top_products(
-        date=params.get("date", "2025-01-05"),
+        date=params["date"],
         kpi=params.get("kpi", "revenue"),
     )
 
@@ -186,12 +186,17 @@ def _decision_ask(params: dict[str, Any], engines: dict[str, Any]) -> dict[str, 
             sensitivity_engine=engines["sensitivity_engine"],
             simulator=engines["simulator"],
             history_manager=history_mgr,
+            explainer=engines.get("explainer"),
+            llm_client=engines.get("llm_client"),
         )
         return manager.process_decision_flow(
             query=params.get("query", ""),
-            product_id=params.get("product_id", "P001"),
+            product_id=params.get("product_id"),
             session_id=params.get("session_id"),
         )
+    except Exception:
+        db.rollback()
+        raise
     finally:
         db.close()
 
@@ -242,6 +247,9 @@ def _repository_search(params: dict[str, Any], engines: dict[str, Any]) -> dict[
                 "structured_report": res["report"].structured_json,
             })
         return {"query": params.get("query", ""), "results_found": len(items), "items": items}
+    except Exception:
+        db.rollback()
+        raise
     finally:
         db.close()
 
@@ -256,6 +264,9 @@ def _repository_extract(params: dict[str, Any], engines: dict[str, Any]) -> dict
     try:
         mgr = HistoryManager(db, encoder=engines.get("history_encoder"))
         return mgr.extract_topic_insights(topic)
+    except Exception:
+        db.rollback()
+        raise
     finally:
         db.close()
 

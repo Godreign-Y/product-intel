@@ -1,39 +1,22 @@
 import numpy as np
 import json
-import os
 import re
 from typing import List, Dict, Any, Optional
 from sqlalchemy.orm import Session
 from sqlalchemy import or_
-from openai import OpenAI
-from dotenv import load_dotenv
 
 from src.core.history.storage.models import Report, ReportEmbedding, Experiment, KnowledgeBase
 from src.core.history.embeddings.encoder import SentenceTransformerEncoder
+from src.core.llm import LLMClient, get_llm_client
 from src.utils.logger import setup_logger
 
 logger = setup_logger("similarity_retriever")
 
 class SimilarityRetriever:
-    def __init__(self, db: Session, encoder: SentenceTransformerEncoder):
+    def __init__(self, db: Session, encoder: SentenceTransformerEncoder, llm_client: Optional[LLMClient] = None):
         self.db = db
         self.encoder = encoder
-        
-        # Initialize OpenAI client for meta-learnings synthesis
-        load_dotenv()
-        self.api_key = os.getenv("NVIDIA_API_KEY") if hasattr(os, "getenv") else None
-        if not self.api_key:
-            # Check environment keys in os.environ
-            import os as os_lib
-            self.api_key = os_lib.environ.get("NVIDIA_API_KEY")
-            
-        self.base_url = "https://integrate.api.nvidia.com/v1"
-        self.model = "meta/llama-3.1-70b-instruct"
-        
-        if self.api_key:
-            self.client = OpenAI(base_url=self.base_url, api_key=self.api_key, timeout=None)
-        else:
-            self.client = None
+        self.llm_client = llm_client or get_llm_client()
 
     def semantic_search(
         self, 
@@ -254,58 +237,34 @@ class SimilarityRetriever:
                 "structured_learnings": rep.structured_json.get("learnings", "") if rep.structured_json else ""
             })
             
-        if self.client:
-            system_prompt = (
-                "You are an Executive Business Intelligence System.\n"
-                "Analyze the list of past growth experiments and synthesize recurring patterns, strategies, and failure modes.\n"
-                "You must return a valid JSON object containing exactly three fields:\n"
-                "- \"learnings\": A brief high-level summary of the recurring patterns.\n"
-                "- \"frequent_failures\": List of actions/experiments that failed or backfired.\n"
-                "- \"successful_strategies\": List of strategies that consistently succeeded.\n"
-                "Keep the tone strictly professional, analytical, and numbers-focused."
+        system_prompt = (
+            "You are an Executive Business Intelligence System.\n"
+            "Analyze the list of past growth experiments and synthesize recurring patterns, strategies, and failure modes.\n"
+            "You must return a valid JSON object containing exactly three fields:\n"
+            "- \"learnings\": A brief high-level summary of the recurring patterns.\n"
+            "- \"frequent_failures\": List of actions/experiments that failed or backfired.\n"
+            "- \"successful_strategies\": List of strategies that consistently succeeded.\n"
+            "Keep the tone strictly professional, analytical, and numbers-focused."
+        )
+        user_prompt = (
+            f"Topic: {topic}\n"
+            f"Historical Experiments Data:\n{json.dumps(experiments_data, indent=2)}"
+        )
+
+        try:
+            logger.info(f"Synthesizing meta-learnings for topic '{topic}' using LLMClient...")
+            synthesized = self.llm_client.generate_json(
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_prompt},
+                ],
+                temperature=0.2,
+                max_tokens=600,
+                model_tier="capable",
             )
-            
-            user_prompt = (
-                f"Topic: {topic}\n"
-                f"Historical Experiments Data:\n{json.dumps(experiments_data, indent=2)}"
-            )
-            
-            try:
-                logger.info(f"Synthesizing meta-learnings for topic '{topic}' using LLM...")
-                logger.info(f"LLM System Prompt:\n{system_prompt}\n")
-                logger.info(f"LLM User Prompt:\n{user_prompt}\n")
-                
-                response = self.client.chat.completions.create(
-                    model=self.model,
-                    messages=[
-                        {"role": "system", "content": system_prompt},
-                        {"role": "user", "content": user_prompt}
-                    ],
-                    temperature=0.2,
-                    max_tokens=600
-                )
-                raw_text = response.choices[0].message.content.strip()
-                logger.info(f"LLM Raw Text Response:\n{raw_text}\n")
-                
-                # Clean markdown wrapper blocks
-                cleaned_text = raw_text.strip()
-                if cleaned_text.startswith("```"):
-                    cleaned_text = re.sub(r"^```(?:json)?\s*", "", cleaned_text)
-                    cleaned_text = re.sub(r"\s*```$", "", cleaned_text)
-                    cleaned_text = cleaned_text.strip()
-                
-                json_match = re.search(r"\{.*\}", cleaned_text, re.DOTALL)
-                if json_match:
-                    synthesized = json.loads(json_match.group(0))
-                else:
-                    synthesized = json.loads(cleaned_text)
-                    
-                logger.info(f"LLM Parsed Synthesized Object:\n{json.dumps(synthesized, indent=2)}\n")
-            except Exception as e:
-                logger.error(f"LLM insight synthesis failed: {e}. Using template fallback.")
-                synthesized = self._get_fallback_synthesis(topic, experiments_data)
-        else:
-            logger.info("No NVIDIA NIM API client configured. Using deterministic fallback synthesis.")
+            logger.info(f"LLM Parsed Synthesized Object:\n{json.dumps(synthesized, indent=2)}\n")
+        except Exception as e:
+            logger.error(f"LLM insight synthesis failed: {e}. Using template fallback.")
             synthesized = self._get_fallback_synthesis(topic, experiments_data)
             
         synthesized["success_rate_pct"] = round(success_rate, 2)

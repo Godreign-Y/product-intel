@@ -8,6 +8,8 @@ and accumulates results in step_results while respecting dependency ordering.
 
 from typing import Any
 
+from src.core.agent.registry.capability_registry import CAPABILITY_REGISTRY
+from src.core.agent.field_resolver import resolve_field
 from src.core.agent.state import AgentState
 from src.core.agent.nodes.tool_nodes import execute_tool
 from src.core.nl2sql.dates import resolve_date
@@ -77,32 +79,65 @@ def execute_dag(state: AgentState, engines: dict[str, Any]) -> dict[str, Any]:
             continue
 
         # 2. Data Flow Resolution (input_from)
+        unresolved_inputs: list[str] = []
         for param_name, mapping in input_from.items():
             if isinstance(mapping, str):
                 parts = mapping.split(".", 1)
-                if len(parts) == 2:
-                    source_step, source_field = parts[0], parts[1]
-                else:
-                    source_step, source_field = mapping, ""
+                source_step = parts[0]
+                source_field = parts[1] if len(parts) == 2 else param_name
             else:
                 source_step = mapping.get("step")
-                source_field = mapping.get("field")
-            if source_step and source_field and source_step in step_results:
-                source_data = step_results[source_step]
-                
-                # If it's a list (like rows from nl2sql), try to extract the field from the first item
-                val = None
-                if isinstance(source_data, dict):
-                    if source_field in source_data:
-                        val = source_data[source_field]
-                    elif "rows" in source_data and isinstance(source_data["rows"], list) and len(source_data["rows"]) > 0:
-                        val = source_data["rows"][0].get(source_field)
-                
-                if val is not None:
-                    params[param_name] = val
-                    logger.debug(f"Resolved input_from for {step_id}.{param_name} = {val} (from {source_step}.{source_field})")
+                source_field = mapping.get("field") or param_name
+
+            if not source_step or source_step not in step_results:
+                unresolved_inputs.append(param_name)
+                continue
+
+            val = resolve_field(step_results[source_step], source_field)
+            if val is not None:
+                params[param_name] = val
+                logger.debug(
+                    f"Resolved input_from for {step_id}.{param_name} = {val} "
+                    f"(from {source_step}.{source_field})"
+                )
+            else:
+                unresolved_inputs.append(param_name)
+                logger.warning(
+                    f"Could not resolve input_from {source_step}.{source_field} "
+                    f"for {step_id}.{param_name}"
+                )
+
+        if unresolved_inputs:
+            from src.core.agent.nodes.dag_planner import extract_query_entities
+
+            entities = extract_query_entities(
+                state.get("user_query", ""),
+                state.get("extracted_params"),
+            )
+            for param_name in list(unresolved_inputs):
+                fallback = entities.get(param_name)
+                if fallback is None and param_name == "target_date":
+                    fallback = entities.get("date")
+                if fallback is None:
+                    continue
+                if param_name in _DATE_PARAM_KEYS:
+                    parsed_date = resolve_date(fallback)
+                    if parsed_date:
+                        params[param_name] = parsed_date.strftime("%Y-%m-%d")
+                        unresolved_inputs.remove(param_name)
                 else:
-                    logger.warning(f"Could not resolve input_from {source_step}.{source_field} for {step_id}.{param_name}")
+                    params[param_name] = fallback
+                    unresolved_inputs.remove(param_name)
+
+        if unresolved_inputs:
+            error_msg = (
+                f"Step {step_id} ({tool_id}) failed: Could not resolve input_from "
+                f"for {unresolved_inputs}."
+            )
+            logger.error(error_msg)
+            errors.append(error_msg)
+            step_results[step_id] = {"error": error_msg}
+            continue
 
         # 3. Temporal Resolution
         for k, v in params.items():
@@ -117,7 +152,6 @@ def execute_dag(state: AgentState, engines: dict[str, Any]) -> dict[str, Any]:
             params["query"] = state.get("user_query", "")
 
         # 4b. Enforce capability schema required parameters
-        from src.core.agent.registry.capability_registry import CAPABILITY_REGISTRY
         schema = CAPABILITY_REGISTRY.get(tool_id, {}).get("input_schema", {})
         missing_required = []
         for param_name, spec in schema.items():

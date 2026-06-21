@@ -174,6 +174,7 @@ def validate_results(state: AgentState) -> dict[str, Any]:
         if not result or result == {}:
             notes.append(f"Step {step_id} returned empty result.")
         elif "error" in result:
+            passed = False
             notes.append(f"Step {step_id} failed: {result['error']}")
         elif "rows" in result and len(result["rows"]) == 0:
             notes.append(f"Step {step_id} executed but found 0 records.")

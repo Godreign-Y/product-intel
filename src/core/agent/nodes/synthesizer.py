@@ -1,12 +1,11 @@
 """
-Synthesizer Node — final LLM call to produce a natural language report.
+Synthesizer Node — streams natural language reports for every response type.
 
-Handles both non-analytical fast responses (greetings, meta queries, blocks) and
-full analytical synthesis from accumulated DAG step results.
+All user-facing text (greetings, guardrails, NL2SQL, analytical) is streamed.
 """
 
 import json
-from typing import Any
+from typing import Any, Iterator
 
 from src.core.agent.state import AgentState
 from src.core.agent.registry.capability_registry import get_tool_descriptions_for_prompt
@@ -24,124 +23,117 @@ Highlight the most critical business insights and recommendations.
 Do not reference internal technical details like step IDs (e.g. 's1', 's2') or raw JSON keys.
 Speak directly to the business user."""
 
+_NL2SQL_SYNTHESIS_PROMPT = """\
+You are a professional Business Intelligence Assistant.
+The user asked a factual data question. A database query was executed and returned tabular results.
+Write a clear, user-friendly markdown answer that highlights the key numbers and findings.
+Use bullet points or a short table when helpful. Do not mention SQL, step IDs, or internal systems.
+If no rows were returned, explain that plainly and suggest how the user might refine the question."""
+
+_FAST_INTENT_COPY: dict[str, str] = {
+    "greeting": (
+        "Hello! I'm your AI-powered Business Analytics Assistant. "
+        "I can help you with forecasting, trend analysis, anomaly detection, "
+        "what-if simulations, and strategic recommendations. How can I assist you today?"
+    ),
+    "system_status": (
+        "The system is online and healthy. All analytics engines — forecasting, anomaly detection, "
+        "decision intelligence, and NL2SQL — are operational."
+    ),
+    "guardrail_block": (
+        "I'm sorry, but I can only help with business analytics questions. "
+        "Try asking about forecasts, trends, anomalies, or strategic recommendations."
+    ),
+    "clarification": (
+        "Could you please provide more details? For example, you can ask me to "
+        "forecast revenue, explain why a metric changed, simulate a what-if scenario, "
+        "or recommend an optimal pricing strategy."
+    ),
+}
+
 
 def synthesize_fast_response(state: AgentState, llm_client: LLMClient) -> dict[str, Any]:
-    """Generate a fast response for non-analytical intents."""
+    """Set routing metadata for fast intents; text is streamed later in the API layer."""
     intent = state["intent"]
+    route = intent
+    if state.get("is_blocked"):
+        route = "guardrail_block"
+    elif intent == "clarification_needed":
+        route = "clarification"
 
-    if intent == "greeting":
-        return {
-            "final_response": (
-                "Hello! I'm your AI-powered Business Analytics Assistant. "
-                "I can help you with forecasting, trend analysis, anomaly detection, "
-                "what-if simulations, and strategic recommendations. How can I assist you today?"
-            ),
-            "raw_data": {},
-            "route_called": "greeting",
-        }
-
-    if intent == "system_status":
-        return {
-            "final_response": "The system is online and healthy. All analytics engines are operational.",
-            "raw_data": {"status": "healthy"},
-            "route_called": "system_status",
-        }
+    payload: dict[str, Any] = {
+        "final_response": "",
+        "raw_data": {},
+        "route_called": route,
+    }
 
     if intent == "meta_query":
-        tools_str = get_tool_descriptions_for_prompt()
-        data_str = get_data_summary_for_prompt()
-        return {
-            "final_response": "",
-            "raw_data": {"tools_str": tools_str, "data_str": data_str},
-            "route_called": "meta_query",
+        payload["raw_data"] = {
+            "tools_str": get_tool_descriptions_for_prompt(),
+            "data_str": get_data_summary_for_prompt(),
         }
+        payload["route_called"] = "meta_query"
+    elif intent == "system_status":
+        payload["raw_data"] = {"status": "healthy"}
 
-    if state.get("is_blocked"):
-        return {
-            "final_response": (
-                "I'm sorry, but I can only help with business analytics questions. "
-                "Try asking about forecasts, trends, anomalies, or strategic recommendations."
-            ),
-            "raw_data": {},
-            "route_called": "guardrail_block",
-        }
+    return payload
 
-    # clarification_needed or unknown
-    return {
-        "final_response": (
-            "Could you please provide more details? For example, you can ask me to "
-            "forecast revenue, explain why a metric changed, simulate a what-if scenario, "
-            "or recommend an optimal pricing strategy."
-        ),
-        "raw_data": {},
-        "route_called": "clarification",
-    }
+
+def synthesize_response_stream(
+    state: AgentState,
+    llm_client: LLMClient,
+) -> Iterator[str]:
+    """Unified streaming entry for every post-graph response."""
+    intent = state.get("intent", "")
+    route = state.get("route_called", "") or intent
+    final_response = (state.get("final_response") or "").strip()
+
+    if final_response:
+        yield from _stream_text(final_response)
+        return
+
+    if route in _FAST_INTENT_COPY or intent in _FAST_INTENT_COPY:
+        key = route if route in _FAST_INTENT_COPY else intent
+        yield from _stream_text(_FAST_INTENT_COPY[key])
+        return
+
+    yield from synthesize_analytical_response_stream(state, llm_client)
 
 
 def synthesize_analytical_response_stream(
     state: AgentState,
     llm_client: LLMClient,
-):
-    """Synthesize a natural language report from analytical results, yielding text stream."""
+) -> Iterator[str]:
+    """Stream analytical synthesis from DAG step results."""
     raw_data = state.get("raw_data", {})
     route = state.get("route_called", "")
     notes = state.get("validation_notes", "")
 
-    # For a 1-step DAG where the only step is nl2sql_query, we can fast-path formatting
-    if route == "nl2sql_query" and len(state.get("execution_plan", [])) == 1:
-        step_id = state["execution_plan"][0]["step_id"]
-        step_data = raw_data.get(step_id, raw_data)
-        
-        formatted = _format_nl2sql_response(state.get("user_query", ""), step_data)
-        if formatted is not None:
-            if notes and "passed" not in notes.lower():
-                formatted += f"\n\n> **Note:** {notes}"
-            yield formatted
-            return
+    if route == "nl2sql_query":
+        step_id = state.get("execution_plan", [{}])[0].get("step_id")
+        step_data = raw_data.get(step_id, raw_data) if step_id else raw_data
+        yield from _stream_nl2sql_synthesis(state.get("user_query", ""), step_data, notes, llm_client)
+        return
 
-    # If the decision engine already produced an explanation in the final step, use it
     if route == "decision_ask":
         for val in raw_data.values():
-            if isinstance(val, dict) and "explanation" in val:
+            if isinstance(val, dict) and val.get("explanation"):
                 resp = val["explanation"]
                 if notes and "passed" not in notes.lower():
                     resp += f"\n\n> **Note:** {notes}"
-                yield resp
+                yield from _stream_text(resp)
                 return
 
-    # Handle Meta Query Streaming
     if route == "meta_query":
-        query = state.get("user_query", "What can you do?")
-        tools_str = raw_data.get("tools_str", "")
-        data_str = raw_data.get("data_str", "")
-        system_msg = (
-            "You are a helpful Business Intelligence AI. The user is asking about your capabilities or data access. "
-            f"Here is the list of your capabilities:\n\n{tools_str}\n\n"
-            f"Here is the available data context:\n\n{data_str}\n\n"
-            "Answer the user's specific query concisely and professionally based ONLY on these capabilities and data context."
-        )
-        try:
-            yield from llm_client.generate_stream(
-                messages=[
-                    {"role": "system", "content": system_msg},
-                    {"role": "user", "content": query},
-                ],
-                temperature=0.2,
-                max_tokens=600,
-                model_tier="fast"
-            )
-        except Exception as e:
-            logger.error(f"Meta query synthesis failed: {e}")
-            yield "Here is an overview of my capabilities. You can ask me to forecast revenue, explain metric drops, simulate business scenarios, or recommend pricing and marketing strategies."
+        yield from _stream_meta_query(state, llm_client)
         return
 
-    # Generic LLM synthesis for single or multi-step results
     try:
         truncated = json.dumps(raw_data, indent=2, default=str)[:4000]
         user_msg = f'User Query: "{state["user_query"]}"\n'
         if notes and "passed" not in notes.lower():
-            user_msg += f'Validation Context (Mention to user if relevant): "{notes}"\n'
-        user_msg += f"Raw Data Results (from DAG execution):\n{truncated}"
+            user_msg += f'Validation Context (mention if relevant): "{notes}"\n'
+        user_msg += f"Raw Data Results:\n{truncated}"
 
         yield from llm_client.generate_stream(
             messages=[
@@ -150,9 +142,8 @@ def synthesize_analytical_response_stream(
             ],
             temperature=0.3,
             max_tokens=800,
-            model_tier="fast", # Use fast model for synthesis
+            model_tier="fast",
         )
-
     except Exception as e:
         logger.error(f"Synthesis failed: {e}")
         yield (
@@ -161,31 +152,95 @@ def synthesize_analytical_response_stream(
         )
 
 
-def _format_nl2sql_response(question: str, raw_data: dict[str, Any]) -> str | None:
-    """Build a markdown answer directly from NL2SQL tabular results."""
-    if not isinstance(raw_data, dict):
-        return None
-        
-    if raw_data.get("error"):
-        return (
+def _stream_nl2sql_synthesis(
+    question: str,
+    step_data: dict[str, Any],
+    notes: str,
+    llm_client: LLMClient,
+) -> Iterator[str]:
+    if not isinstance(step_data, dict):
+        yield "I couldn't retrieve that from the database."
+        return
+
+    if step_data.get("error"):
+        yield (
             "I couldn't retrieve that from the database. "
-            f"Reason: {raw_data['error']}\n\n"
+            f"Reason: {step_data['error']}\n\n"
             "Try rephrasing, or specify a product (e.g. P001) and a date range."
         )
+        return
 
+    context = json.dumps(step_data, indent=2, default=str)[:3500]
+    user_msg = (
+        f'User Question: "{question}"\n\n'
+        f"Database Results:\n{context}"
+    )
+    if notes and "passed" not in notes.lower():
+        user_msg += f"\n\nValidation note: {notes}"
+
+    try:
+        yield from llm_client.generate_stream(
+            messages=[
+                {"role": "system", "content": _NL2SQL_SYNTHESIS_PROMPT},
+                {"role": "user", "content": user_msg},
+            ],
+            temperature=0.25,
+            max_tokens=600,
+            model_tier="fast",
+        )
+    except Exception as e:
+        logger.error(f"NL2SQL synthesis failed: {e}")
+        fallback = _format_nl2sql_table(question, step_data)
+        yield fallback or "No matching records were found for that query."
+
+
+def _stream_meta_query(state: AgentState, llm_client: LLMClient) -> Iterator[str]:
+    query = state.get("user_query", "What can you do?")
+    raw_data = state.get("raw_data", {})
+    tools_str = raw_data.get("tools_str") or get_tool_descriptions_for_prompt()
+    data_str = raw_data.get("data_str") or get_data_summary_for_prompt()
+    system_msg = (
+        "You are a helpful Business Intelligence AI. The user is asking about your capabilities or data access. "
+        f"Capabilities:\n\n{tools_str}\n\nData context:\n\n{data_str}\n\n"
+        "Answer concisely and professionally based ONLY on this context."
+    )
+    try:
+        yield from llm_client.generate_stream(
+            messages=[
+                {"role": "system", "content": system_msg},
+                {"role": "user", "content": query},
+            ],
+            temperature=0.2,
+            max_tokens=600,
+            model_tier="fast",
+        )
+    except Exception as e:
+        logger.error(f"Meta query synthesis failed: {e}")
+        yield from _stream_text(
+            "You can ask me to forecast revenue, explain metric drops, simulate business scenarios, "
+            "detect anomalies, query product data, or recommend pricing and marketing strategies."
+        )
+
+
+def _stream_text(text: str, chunk_size: int = 16) -> Iterator[str]:
+    """Yield text in chunks so the UI shows progressive streaming."""
+    if not text:
+        return
+    for i in range(0, len(text), chunk_size):
+        yield text[i:i + chunk_size]
+
+
+def _format_nl2sql_table(question: str, raw_data: dict[str, Any]) -> str | None:
     rows = raw_data.get("rows", [])
     if not rows:
-        return "No matching records were found for that query."
+        return None
 
     columns = raw_data.get("columns") or list(rows[0].keys())
-
     lines: list[str] = []
     if question:
-        lines.append(f"Here are the results for: _{question.strip()}_\n")
-
+        lines.append(f"Results for: _{question.strip()}_\n")
     lines.append("| " + " | ".join(str(c) for c in columns) + " |")
     lines.append("| " + " | ".join("---" for _ in columns) + " |")
-
     for row in rows:
         cells = []
         for col in columns:
@@ -199,9 +254,5 @@ def _format_nl2sql_response(question: str, raw_data: dict[str, Any]) -> str | No
             else:
                 cells.append(str(val))
         lines.append("| " + " | ".join(cells) + " |")
-
     lines.append(f"\n**{len(rows)} row(s) returned.**")
-    if raw_data.get("truncated"):
-        lines.append("_Showing the first 100 rows._")
-
     return "\n".join(lines)

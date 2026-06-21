@@ -24,7 +24,7 @@ class AgentState(TypedDict):
     block_reason: str
 
     # ── Planning ─────────────────────────────────────────────────────────
-    dag_source: str                        # "pre_compiled" | "dynamic" | "dynamic_retry"
+    dag_source: str                        # "dynamic" | "dynamic_retry" | "regex_fast_path" | ...
     execution_plan: list[dict[str, Any]]   # ordered DAG steps
 
     # ── Execution ────────────────────────────────────────────────────────

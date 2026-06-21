@@ -21,7 +21,7 @@ Output ONLY a JSON object with this shape:
 {{ "sql": "SELECT ..." }}
 
 Guidelines:
-- Use only listed tables and columns.
+- Use only listed tables and columns — never reference total_revenue/total_profit as columns; use SUM(revenue) AS total_revenue instead.
 - Prefer aggregations (SUM, AVG, COUNT) for totals and rankings.
 - When the user asks for "each product" or "all products", GROUP BY product_id.
 - Filter dates with standard comparisons (date >= 'YYYY-MM-DD').

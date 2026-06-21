@@ -4,6 +4,9 @@ Intent Classifier Node — first node in the LangGraph pipeline.
 Classifies user queries into intents and applies guardrails.
 Greetings and out-of-scope queries are short-circuited here.
 Uses fast SentenceTransformer embeddings for zero-latency classification.
+
+data_lookup fast-path is intentionally strict: only pure factual SQL lookups
+(rankings, counts, totals) bypass the LLM planner. Everything else goes to plan_dag.
 """
 
 import re
@@ -17,7 +20,6 @@ from src.utils.logger import setup_logger
 
 logger = setup_logger("intent_classifier")
 
-# Fast rule-based patterns for zero-latency classification
 _GREETING_PATTERNS = {
     "hi", "hello", "hey", "good morning", "good afternoon", "good evening",
     "howdy", "greetings", "yo", "sup", "hola", "namaste", "hii", "hiya",
@@ -26,33 +28,77 @@ _GREETING_PATTERNS = {
 
 _NON_ANALYTICAL_INTENTS = {"greeting", "system_status", "out_of_scope", "clarification_needed", "meta_query"}
 
-# Factual DB lookups (rankings, counts, lists) → route directly to NL2SQL.
-_DATA_LOOKUP_PATTERNS = (
-    re.compile(r"\btop\s+\d+\b", re.IGNORECASE),
-    re.compile(r"\b(highest|lowest|most|least|biggest|smallest)\b", re.IGNORECASE),
-    re.compile(r"\bhow many\b", re.IGNORECASE),
-    re.compile(r"\blist\b", re.IGNORECASE),
-    re.compile(r"\bcount\b", re.IGNORECASE),
-    re.compile(r"\bwhich products?\b", re.IGNORECASE),
-    re.compile(r"\ball (the )?products?\b", re.IGNORECASE),
-    re.compile(r"\beach product\b", re.IGNORECASE),
-    re.compile(r"\btotal\b.+\b(revenue|profit|orders|inventory|sales)\b", re.IGNORECASE),
-    re.compile(r"\b(revenue|profit|orders|sales)\b.+\b(for|of|by|per|from)\b", re.IGNORECASE),
-)
+_DATA_LOOKUP_MIN_CONFIDENCE = 0.88
 
-# If these appear, prefer the ML/analytics engines, not a plain SQL lookup.
-_ENGINE_INTENT_PATTERNS = re.compile(
-    r"\b(forecast|predict|projection|explain why|why|what if|what-if|should we|"
-    r"recommend|recommendation|optimi[sz]e|simulate|simulation|anomal|sensitivit|compare)\b",
+# Never treat as a plain SQL lookup when any of these appear.
+_NOT_DATA_LOOKUP = re.compile(
+    r"\b("
+    r"forecast|predict|projection|explain|why|what if|what-if|should we|should i|"
+    r"recommend|recommendation|optimi[sz]e|maximi[sz]e|simulate|simulation|"
+    r"anomal|outlier|sensitivit|elasticity|driver|root cause|diagnos|"
+    r"compare|versus|\bvs\b|benchmark|trend|growth|seasonal|"
+    r"strategy|best way|what happens if|what will happen|"
+    r"experiment|learning|past report|historical report|a/b test"
+    r")\b",
     re.IGNORECASE,
 )
 
+# Must match at least one — narrow factual-SQL shapes only.
+_STRICT_DATA_LOOKUP_PATTERNS = (
+    re.compile(r"\btop\s+\d+\b", re.IGNORECASE),
+    re.compile(r"\bshow me the top\s+\d+\b", re.IGNORECASE),
+    re.compile(r"\bhow many\s+(products?|orders?|customers?|units?|rows?)\b", re.IGNORECASE),
+    re.compile(r"\b(count|number) of\s+(products?|orders?|customers?|units?)\b", re.IGNORECASE),
+    re.compile(r"\blist\s+(all\s+)?(the\s+)?(products?|items?|skus?)\b", re.IGNORECASE),
+    re.compile(r"\bwhat (is|was) the total\b", re.IGNORECASE),
+    re.compile(
+        r"\bwhich product (had|has|with) the (highest|lowest|most|least|best|worst|maximum|minimum)\b",
+        re.IGNORECASE,
+    ),
+    re.compile(r"\brank(?:ing)? (?:all )?products? by\b", re.IGNORECASE),
+    re.compile(r"\bsum of (revenue|profit|orders|sales)\b", re.IGNORECASE),
+    re.compile(
+        r"\b(highest|lowest) (total )?(revenue|profit|orders|sales)\b.+\b(product|sku|P\d+)\b",
+        re.IGNORECASE,
+    ),
+)
 
-def _is_data_lookup_query(query: str) -> bool:
-    """Detect ad-hoc factual DB questions without an LLM call."""
-    if _ENGINE_INTENT_PATTERNS.search(query):
+
+def _is_strict_data_lookup_query(query: str) -> bool:
+    """True only for unambiguous factual DB lookups that NL2SQL alone can answer."""
+    if _NOT_DATA_LOOKUP.search(query):
         return False
-    return any(pattern.search(query) for pattern in _DATA_LOOKUP_PATTERNS)
+    if query.count("?") > 1:
+        return False
+    if re.search(r"\b(and|then|also)\b.+\b(forecast|explain|why|recommend|simulate|optimi[sz]e)\b", query, re.I):
+        return False
+    return any(pattern.search(query) for pattern in _STRICT_DATA_LOOKUP_PATTERNS)
+
+
+def _data_lookup_fast_path(query: str, confidence: float, source: str) -> dict[str, Any] | None:
+    """Build a direct NL2SQL plan only when confidence and pattern checks both pass."""
+    if not _is_strict_data_lookup_query(query):
+        logger.info(f"data_lookup rejected for '{query}' ({source}): failed strict pattern gate.")
+        return None
+    if confidence < _DATA_LOOKUP_MIN_CONFIDENCE:
+        logger.info(
+            f"data_lookup rejected for '{query}' ({source}): "
+            f"confidence {confidence:.2f} < {_DATA_LOOKUP_MIN_CONFIDENCE}."
+        )
+        return None
+
+    logger.info(f"Strict data_lookup fast-path ({source}): '{query}'")
+    return {
+        "intent": "data_lookup",
+        "intent_confidence": confidence,
+        "extracted_params": {"query": query},
+        "execution_plan": [
+            {"step_id": "s1", "tool_id": "nl2sql_query", "params": {"query": query}, "depends_on": []},
+        ],
+        "dag_source": source,
+        "is_blocked": False,
+        "block_reason": "",
+    }
 
 
 def classify_intent(state: AgentState, llm_client: LLMClient) -> dict[str, Any]:
@@ -60,7 +106,6 @@ def classify_intent(state: AgentState, llm_client: LLMClient) -> dict[str, Any]:
     query = state.get("user_query", "").strip()
     query_lower = query.lower().strip("!?., ")
 
-    # 1. Fast-path: rule-based greeting detection
     if query_lower in _GREETING_PATTERNS or len(query_lower) < 3:
         logger.info(f"Fast-path greeting detected: '{query}'")
         return {
@@ -71,44 +116,32 @@ def classify_intent(state: AgentState, llm_client: LLMClient) -> dict[str, Any]:
             "block_reason": "",
         }
 
-    # 2. Fast-path: factual data lookup (rankings, lists, counts)
-    if _is_data_lookup_query(query):
-        logger.info(f"Fast-path data_lookup regex detected: '{query}'")
-        return {
-            "intent": "data_lookup",
-            "intent_confidence": 0.95,
-            "extracted_params": {"query": query},
-            "execution_plan": [{"step_id": "s1", "tool_id": "nl2sql_query", "params": {"query": query}, "depends_on": []}],
-            "dag_source": "fast_path",
-            "is_blocked": False,
-            "block_reason": "",
-        }
+    if _is_strict_data_lookup_query(query):
+        fast = _data_lookup_fast_path(query, 1.0, "regex_fast_path")
+        if fast:
+            return fast
 
-    # 3. Embedding matching
     matcher = get_intent_matcher()
     intent, confidence = matcher.match_intent(query, threshold=0.65)
-    
+
     if intent != "unknown":
         logger.info(f"Embedding matched intent '{intent}' with confidence {confidence:.2f}")
+
+        if intent == "data_lookup":
+            fast = _data_lookup_fast_path(query, confidence, "embedding_fast_path")
+            if fast:
+                return fast
+            intent = "analytical"
+
         is_blocked = intent == "out_of_scope"
-        block_reason = "Query is outside the scope of business analytics." if is_blocked else ""
-        
-        result = {
+        return {
             "intent": intent,
             "intent_confidence": confidence,
-            "extracted_params": {"query": query}, # Planner will extract actual params
+            "extracted_params": {"query": query},
             "is_blocked": is_blocked,
-            "block_reason": block_reason,
+            "block_reason": "Query is outside the scope of business analytics." if is_blocked else "",
         }
-        
-        # If the embedding strongly hits data_lookup, inject the plan directly
-        if intent == "data_lookup":
-            result["execution_plan"] = [{"step_id": "s1", "tool_id": "nl2sql_query", "params": {"query": query}, "depends_on": []}]
-            result["dag_source"] = "embedding_fast_path"
-            
-        return result
 
-    # 4. LLM fallback
     logger.info(f"Embedding confidence low ({confidence:.2f}). Falling back to LLM intent classification.")
     try:
         result = llm_client.generate_json(
@@ -124,24 +157,23 @@ def classify_intent(state: AgentState, llm_client: LLMClient) -> dict[str, Any]:
         params = result.get("extracted_params", {})
         params["query"] = query
 
-        logger.info(f"LLM Classified intent: {intent} (confidence={confidence:.2f})")
+        logger.info(f"LLM classified intent: {intent} (confidence={confidence:.2f})")
+
+        if intent == "data_lookup":
+            fast = _data_lookup_fast_path(query, confidence, "llm_fast_path")
+            if fast:
+                return fast
+            intent = "analytical"
+            logger.info("LLM data_lookup downgraded to analytical (strict gate).")
 
         is_blocked = intent == "out_of_scope"
-        block_reason = "Query is outside the scope of business analytics." if is_blocked else ""
-
-        response = {
+        return {
             "intent": intent,
             "intent_confidence": confidence,
             "extracted_params": params,
             "is_blocked": is_blocked,
-            "block_reason": block_reason,
+            "block_reason": "Query is outside the scope of business analytics." if is_blocked else "",
         }
-        
-        if intent == "data_lookup":
-            response["execution_plan"] = [{"step_id": "s1", "tool_id": "nl2sql_query", "params": {"query": query}, "depends_on": []}]
-            response["dag_source"] = "llm_fast_path"
-            
-        return response
 
     except Exception as e:
         logger.error(f"Intent classification failed: {e}. Falling back to analytical.")

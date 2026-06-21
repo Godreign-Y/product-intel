@@ -9,6 +9,7 @@ from typing import Any
 import json
 
 from src.core.agent.state import AgentState
+from src.core.agent.nodes.dag_planner import normalize_dag
 from src.core.agent.registry.capability_registry import get_tool_descriptions_for_prompt
 from src.core.llm import LLMClient
 from src.utils.logger import setup_logger
@@ -89,16 +90,21 @@ def replan_dag(state: AgentState, llm_client: LLMClient) -> dict[str, Any]:
             max_tokens=800,
             model_tier="capable"
         )
-        new_dag = result.get("dag", [])
+        new_dag = normalize_dag(
+            result.get("dag", []),
+            query,
+            state.get("extracted_params"),
+        )
         reasoning = result.get("reasoning", "")
         logger.info(f"Replanner generated new DAG with {len(new_dag)} steps.")
         logger.info(f"Replanner Reasoning: {reasoning}")
         logger.info(f"New Execution Plan:\n{json.dumps(new_dag, indent=2)}")
-        
+
         return {
             "execution_plan": new_dag,
+            "dag_source": "dynamic_retry",
             "retry_count": retry_count + 1,
-            "validation_passed": False, # Reset validation flag
+            "validation_passed": False,
         }
 
     except Exception as e:

@@ -5,7 +5,7 @@ Flow:
 Intent Classifier → (Fast Response | DAG Planner | DAG Executor)
 DAG Planner → DAG Executor
 DAG Executor → Validator
-Validator → (Synthesizer | Replanner)
+Validator → (END | Replanner) — synthesis runs in the API stream layer after the graph completes.
 Replanner → DAG Executor
 """
 

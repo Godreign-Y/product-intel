@@ -33,6 +33,18 @@ export interface ChartDataConfig {
   datasets: any[];
 }
 
+export type VizStatus = 'loading' | 'ready' | 'error';
+
+export interface ChatVisualization {
+  id: string;
+  title: string;
+  subtitle?: string;
+  chart_type: 'line' | 'bar' | 'doughnut';
+  index_axis?: 'x' | 'y' | null;
+  status: VizStatus;
+  data?: ChartDataConfig;
+}
+
 export interface Message {
   sender: 'user' | 'assistant';
   text: string;
@@ -40,6 +52,7 @@ export interface Message {
     route?: string;
     raw?: any;
   };
+  visualizations?: ChatVisualization[];
 }
 
 // Data Layer Responses

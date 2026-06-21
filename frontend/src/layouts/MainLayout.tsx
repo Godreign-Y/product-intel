@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { FilterProvider } from '../components/FilterContext';
 import { useTheme } from '../context/ThemeContext';
+import { ThreeDInteractiveBackground } from '../components/ThreeDInteractiveBackground';
 
 const NAV_ITEMS = [
   { to: '/', end: true, icon: LayoutDashboard, label: 'Dashboard' },
@@ -32,6 +33,7 @@ export const MainLayout: React.FC = () => {
 
   return (
     <FilterProvider>
+      <ThreeDInteractiveBackground />
       <button
         className="mobile-menu-btn"
         onClick={() => setSidebarOpen(!sidebarOpen)}
@@ -49,12 +51,14 @@ export const MainLayout: React.FC = () => {
       <div className="app-container">
         <aside className={`sidebar ${sidebarOpen ? 'open' : ''}`}>
           <div className="logo-container">
-            <div className="logo-mark">
-              <span style={{ fontFamily: 'var(--font-display)', fontSize: 18 }}>P</span>
-            </div>
+            <img 
+              src="/favicon.svg" 
+              alt="ProductIntel Logo" 
+              style={{ width: 40, height: 40, objectFit: 'contain' }} 
+            />
             <div>
               <div className="logo-text">ProductIntel</div>
-              <div className="logo-tagline">Calm Intelligence</div>
+              <div className="logo-tagline">Product Intelligence</div>
             </div>
           </div>
 

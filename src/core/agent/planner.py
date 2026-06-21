@@ -3,8 +3,6 @@ import json
 import re
 import pandas as pd
 from typing import Dict, Any, Optional
-from openai import OpenAI
-from dotenv import load_dotenv
 
 from src.core.forecaster import ProductForecaster
 from src.core.explainer import PredictionExplainer
@@ -16,6 +14,50 @@ from src.core.sensitivity import SensitivityEngine
 from src.utils.logger import setup_logger
 
 logger = setup_logger("planner_agent")
+
+
+def _stream_text_and_visualizations(result: dict[str, Any], llm_client: Any):
+    """Stream text synthesis and visualization events in parallel."""
+    import queue
+    import threading
+    import time
+
+    from src.core.agent.nodes.synthesizer import synthesize_response_stream
+    from src.core.agent.visualization.generator import serialize_viz_event, stream_visualizations
+
+    viz_queue: queue.Queue = queue.Queue()
+    viz_done = threading.Event()
+
+    def _run_viz() -> None:
+        try:
+            for event in stream_visualizations(result, llm_client):
+                viz_queue.put(event)
+        finally:
+            viz_done.set()
+
+    threading.Thread(target=_run_viz, daemon=True).start()
+
+    def _drain_viz() -> list[str]:
+        drained: list[str] = []
+        while True:
+            try:
+                drained.append(serialize_viz_event(viz_queue.get_nowait()))
+            except queue.Empty:
+                break
+        return drained
+
+    for chunk in synthesize_response_stream(result, llm_client):
+        yield f"data: {json.dumps({'type': 'text', 'content': chunk})}\n\n"
+        for payload in _drain_viz():
+            yield payload
+
+    while not viz_done.is_set() or not viz_queue.empty():
+        for payload in _drain_viz():
+            yield payload
+        if viz_done.is_set() and viz_queue.empty():
+            break
+        time.sleep(0.05)
+
 
 class LLMPlannerAgent:
     def __init__(
@@ -37,26 +79,16 @@ class LLMPlannerAgent:
         self.analytics_engine = analytics_engine
         self.sensitivity_engine = sensitivity_engine
         self.df_historical = df_historical
-        
-        # Load API key and initialize client
-        load_dotenv()
-        self.api_key = os.getenv("NVIDIA_API_KEY")
-        self.base_url = "https://integrate.api.nvidia.com/v1"
-        self.model = "meta/llama-3.1-70b-instruct"
-        
-        if not self.api_key:
-            logger.warning("NVIDIA_API_KEY not found in environment variables. LLM client will fail if called.")
-            self.client = None
-        else:
-            self.client = OpenAI(base_url=self.base_url, api_key=self.api_key, timeout=None)
+
+        from src.core.llm import get_llm_client
+        self.llm_client = get_llm_client()
 
     def route_and_extract(self, query: str) -> Dict[str, Any]:
         """
         Calls Llama 3.1 to select the correct API route and arguments based on user prompt.
         """
-        if not self.client:
-            # Fallback mock routing if API key is not present (mainly for testing environment)
-            logger.warning("No LLM client initialized. Falling back to deterministic rule-based router.")
+        if not self.llm_client:
+            logger.warning("LLM client unavailable. Falling back to deterministic rule-based router.")
             return self._fallback_rule_based_router(query)
             
         system_prompt = (
@@ -115,24 +147,17 @@ class LLMPlannerAgent:
         )
         
         try:
-            response = self.client.chat.completions.create(
-                model=self.model,
+            result = self.llm_client.generate_json(
                 messages=[
                     {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": query}
+                    {"role": "user", "content": query},
                 ],
                 temperature=0.1,
-                max_tokens=300
+                max_tokens=300,
+                model_tier="capable",
             )
-            raw_text = response.choices[0].message.content.strip()
-            logger.info(f"LLM Routing Output: {raw_text}")
-            
-            # Extract JSON from the text
-            json_match = re.search(r"\{.*\}", raw_text, re.DOTALL)
-            if json_match:
-                return json.loads(json_match.group(0))
-            else:
-                return json.loads(raw_text)
+            logger.info(f"LLM Routing Output: {result}")
+            return result
         except Exception as e:
             logger.error(f"LLM routing failed: {e}. Falling back to rule-based.")
             return self._fallback_rule_based_router(query)
@@ -457,11 +482,11 @@ class LLMPlannerAgent:
         if route == "decision_ask" and "explanation" in raw_data:
             return raw_data["explanation"]
 
-        if not self.client:
+        if not self.llm_client:
             return (
                 f"Deterministically executed route '{route}'. Here is the computed data:\n"
                 f"{json.dumps(raw_data, indent=2)}\n"
-                "Please configure NVIDIA_API_KEY to receive synthesized natural language summaries."
+                "Please configure an LLM provider to receive synthesized natural language summaries."
             )
             
         system_prompt = (
@@ -480,16 +505,15 @@ class LLMPlannerAgent:
         )
         
         try:
-            response = self.client.chat.completions.create(
-                model=self.model,
+            return self.llm_client.generate(
                 messages=[
                     {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": user_content}
+                    {"role": "user", "content": user_content},
                 ],
                 temperature=0.3,
-                max_tokens=600
+                max_tokens=600,
+                model_tier="fast",
             )
-            return response.choices[0].message.content.strip()
         except Exception as e:
             logger.error(f"Synthesis failed: {e}")
             return (
@@ -505,13 +529,70 @@ class LLMPlannerAgent:
         # ── Try LangGraph pipeline first ─────────────────────────────
         try:
             from src.core.agent.graph import run_agent_graph, _compiled_graph, _llm_client
-            from src.core.agent.nodes.synthesizer import synthesize_analytical_response_stream
+            from src.core.agent.nodes.synthesizer import synthesize_response_stream
             
             if _compiled_graph is not None:
-                yield f"data: {json.dumps({'type': 'status', 'content': 'Analyzing request...'})}\n\n"
-                result = run_agent_graph(query)
+                # Construct the initial graph state
+                from src.core.agent.state import AgentState
+                initial_state: AgentState = {
+                    "user_query": query,
+                    "intent": "",
+                    "intent_confidence": 0.0,
+                    "extracted_params": {},
+                    "is_blocked": False,
+                    "block_reason": "",
+                    "dag_source": "",
+                    "execution_plan": [],
+                    "current_step_index": 0,
+                    "step_results": {},
+                    "execution_errors": [],
+                    "validation_passed": True,
+                    "validation_notes": "",
+                    "retry_count": 0,
+                    "final_response": "",
+                    "raw_data": {},
+                    "route_called": "",
+                }
                 
-                # First chunk: Metadata
+                result = initial_state
+                yield f"data: {json.dumps({'type': 'status', 'content': 'Classifying query intent...'})}\n\n"
+                
+                # Stream node by node
+                for event in _compiled_graph.stream(initial_state):
+                    for node_name, state_update in event.items():
+                        # Update our local accumulated state
+                        result = {**result, **state_update}
+                        
+                        # Yield status updates for each node type
+                        if node_name == "intent_classifier":
+                            intent = result.get("intent", "analytical")
+                            conf = result.get("intent_confidence", 1.0)
+                            yield f"data: {json.dumps({'type': 'status', 'content': f'Classified intent: {intent} ({conf*100:.0f}% confidence)'})}\n\n"
+                        elif node_name == "dag_planner":
+                            plan = result.get("execution_plan", [])
+                            tool_ids = [
+                                s.get("tool_id", s.get("step_id", "?"))
+                                for s in plan
+                                if isinstance(s, dict)
+                            ]
+                            plan_str = f" ({', '.join(tool_ids)})" if tool_ids else ""
+                            yield f"data: {json.dumps({'type': 'status', 'content': f'Formulating analytics plan{plan_str}...'})}\n\n"
+                        elif node_name == "dag_executor":
+                            steps = result.get("execution_plan", [])
+                            idx = result.get("current_step_index", 0)
+                            step = steps[idx] if steps and idx < len(steps) else {}
+                            step_label = step.get("tool_id", step.get("step_id", "")) if isinstance(step, dict) else str(step)
+                            step_info = f" (Step {idx + 1}/{len(steps)}: {step_label})" if step_label else ""
+                            yield f"data: {json.dumps({'type': 'status', 'content': f'Running mathematical calculations{step_info}...'})}\n\n"
+                        elif node_name == "validator":
+                            passed = result.get("validation_passed", True)
+                            status_text = "passed" if passed else "flagged inconsistencies"
+                            yield f"data: {json.dumps({'type': 'status', 'content': f'Validating model output... validation {status_text}.'})}\n\n"
+                        elif node_name == "replanner":
+                            yield f"data: {json.dumps({'type': 'status', 'content': 'Adjusting parameters for refinement...'})}\n\n"
+                        elif node_name == "fast_response":
+                            yield f"data: {json.dumps({'type': 'status', 'content': 'Generating fast summary...'})}\n\n"
+
                 meta_chunk = {
                     "type": "metadata",
                     "query": result.get("user_query", query),
@@ -519,15 +600,8 @@ class LLMPlannerAgent:
                     "raw_data": result.get("raw_data", {})
                 }
                 yield f"data: {json.dumps(meta_chunk)}\n\n"
-                
-                if result.get("final_response"):
-                    # Fast response was generated
-                    yield f"data: {json.dumps({'type': 'text', 'content': result['final_response']})}\n\n"
-                else:
-                    # Synthesize analytical response
-                    for chunk in synthesize_analytical_response_stream(result, _llm_client):
-                        yield f"data: {json.dumps({'type': 'text', 'content': chunk})}\n\n"
-                        
+
+                yield from _stream_text_and_visualizations(result, _llm_client)
                 yield "data: [DONE]\n\n"
                 return
                 
@@ -535,12 +609,14 @@ class LLMPlannerAgent:
             logger.warning(f"LangGraph pipeline failed, falling back to legacy: {e}")
 
         # ── Legacy fallback ──────────────────────────────────────────
+        yield f"data: {json.dumps({'type': 'status', 'content': 'Analyzing query intent (legacy)...'})}\n\n"
         routing_info = self.route_and_extract(query)
         route = routing_info.get("route", "forecast_predict")
         params = routing_info.get("params", {})
         if "query" not in params:
             params["query"] = query
 
+        yield f"data: {json.dumps({'type': 'status', 'content': f'Running legacy calculation: {route}...'})}\n\n"
         raw_data = self.execute_route(route, params)
         
         meta_chunk = {
@@ -550,9 +626,15 @@ class LLMPlannerAgent:
             "raw_data": raw_data
         }
         yield f"data: {json.dumps(meta_chunk)}\n\n"
-        
-        natural_language_answer = self.synthesize_answer(query, route, raw_data)
-        yield f"data: {json.dumps({'type': 'text', 'content': natural_language_answer})}\n\n"
+
+        legacy_state = {
+            "user_query": query,
+            "intent": "analytical",
+            "route_called": route,
+            "raw_data": {"s1": raw_data},
+            "execution_plan": [{"step_id": "s1", "tool_id": route, "params": params, "depends_on": []}],
+        }
+        yield from _stream_text_and_visualizations(legacy_state, self.llm_client)
         yield "data: [DONE]\n\n"
 
     def _fallback_rule_based_router(self, query: str) -> Dict[str, Any]:

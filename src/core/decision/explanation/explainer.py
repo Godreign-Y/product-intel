@@ -1,34 +1,21 @@
-import os
 import json
 import re
-from openai import OpenAI
-from dotenv import load_dotenv
 from typing import Dict, Any, List, Optional
 
 from src.core.decision.config_loader import load_decision_config
+from src.core.llm import LLMClient, get_llm_client
 from src.utils.logger import setup_logger
 
 logger = setup_logger("explanation_engine")
 
 class ExplanationEngine:
-    def __init__(self):
-        load_dotenv()
-        self.api_key = os.getenv("NVIDIA_API_KEY")
-        self.base_url = "https://integrate.api.nvidia.com/v1"
-        self.model = "meta/llama-3.1-8b-instruct"
+    def __init__(self, llm_client: Optional[LLMClient] = None):
+        self.llm_client = llm_client or get_llm_client()
 
         cfg = load_decision_config()
-        exp_cfg = cfg.get("explanation", {})
         conf_thresh = cfg.get("confidence_thresholds", {})
-        self.llm_timeout = None
         self.high_conf_threshold = conf_thresh.get("high", 0.70)
-        
-        logger.info(f"Initialized ExplanationEngine: model={self.model}, high_conf_threshold={self.high_conf_threshold}, timeout={self.llm_timeout}")
-        if not self.api_key:
-            logger.warning("NVIDIA_API_KEY is not defined in the environment. ExplanationEngine will fall back to local templates.")
-            self.client = None
-        else:
-            self.client = OpenAI(base_url=self.base_url, api_key=self.api_key, timeout=self.llm_timeout)
+        logger.info(f"Initialized ExplanationEngine: high_conf_threshold={self.high_conf_threshold}")
 
     def generate_explanation(
         self, 
@@ -44,10 +31,8 @@ class ExplanationEngine:
             logger.warning("generate_explanation: No active ranked hypotheses. Returning generic header.")
             return "# Decision Engine Explanation\n\nNo active business hypotheses generated for this query."
 
-        # Build hypothesis_id-keyed recommendation lookup (replaces fragile index-based correlation)
         rec_map = {r["hypothesis_id"]: r for r in recommendations}
 
-        # Compile summaries for the prompt/template
         summary_data = []
         for item in ranked_items:
             hypo = item["hypothesis"]
@@ -67,10 +52,6 @@ class ExplanationEngine:
                 "risk_assessment": rec.get("risk_assessment", {})
             })
 
-        if not self.client:
-            logger.info("generate_explanation: LLM client not instantiated. Using local fallback template.")
-            return self._generate_fallback_explanation(summary_data)
-            
         system_prompt = (
             "You are an Executive Business Intelligence System.\n"
             "Compile a polished, business-ready executive decision brief based on the validated hypotheses and recommendations.\n"
@@ -91,22 +72,20 @@ class ExplanationEngine:
             f"Input Analytical Data:\n{json.dumps(summary_data, indent=2)}\n"
         )
         
-        logger.info(f"generate_explanation: Querying LLM '{self.model}' for executive markdown generation.")
+        logger.info("generate_explanation: Querying LLMClient for executive markdown generation.")
         try:
-            response = self.client.chat.completions.create(
-                model=self.model,
+            raw_content = self.llm_client.generate(
                 messages=[
                     {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": prompt}
+                    {"role": "user", "content": prompt},
                 ],
                 temperature=0.2,
-                max_tokens=1000
+                max_tokens=1000,
+                model_tier="capable",
             )
-            raw_content = response.choices[0].message.content.strip()
-            logger.info("generate_explanation: Successfully generated executive explanation via Llama API.")
-            return raw_content
+            logger.info("generate_explanation: Successfully generated executive explanation via LLMClient.")
+            return raw_content.strip()
         except Exception as e:
-            # Fall back to template on any error
             logger.error(f"generate_explanation: LLM request failed: {e}. Falling back to structured local markdown template.")
             return self._generate_fallback_explanation(summary_data)
 
@@ -117,7 +96,6 @@ class ExplanationEngine:
         """
         logger.info(f"_generate_fallback_explanation: Formulating local brief for {len(summary_data)} hypotheses.")
         
-        # Split into primary and related
         primary = [s for s in summary_data if s.get("is_primary", True)]
         related = [s for s in summary_data if not s.get("is_primary", True)]
         
@@ -168,7 +146,6 @@ class ExplanationEngine:
                 md += f"* **Tactical Action**: {s['action_recommended']}\n"
                 md += f"* **Rollback Blueprint**: {s['rollback_strategy']}\n"
 
-        # 4. Risk Matrix
         has_risks = any(s.get("risk_assessment") for s in summary_data)
         if has_risks:
             md += "\n## 4. Risk Matrix\n\n"

@@ -94,7 +94,7 @@ class TestLLMFailureFallback:
         state = _make_state("Show me the revenue trends with anomalies")
         result = classify_intent(state, mock_llm)
 
-        assert result["intent"] == "multi_step_analysis"
+        assert result["intent"] == "analytical"
         assert result["intent_confidence"] == 0.3
 
 

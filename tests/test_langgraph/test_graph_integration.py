@@ -79,16 +79,17 @@ class TestGuardrailBlock:
 class TestAnalyticalFlow:
     """Test that analytical queries go through the full DAG pipeline."""
 
-    def test_forecast_uses_precompiled_dag(self) -> None:
+    def test_forecast_uses_llm_planner(self) -> None:
         mock_llm = MagicMock()
-        # First call: intent classification
         mock_llm.generate_json.return_value = {
-            "intent": "forecast_request",
-            "confidence": 0.95,
-            "extracted_params": {"product_id": "P001", "horizon_days": 30},
+            "reasoning": "Single-step forecast for P001.",
+            "dag": [{
+                "step_id": "s1",
+                "tool_id": "forecast_predict",
+                "params": {"product_id": "P001", "horizon_days": 30},
+                "depends_on": [],
+            }],
         }
-        # Second call: synthesis
-        mock_llm.generate.return_value = "Revenue forecast summary..."
 
         engines = _mock_engines()
         import pandas as pd
@@ -101,7 +102,6 @@ class TestAnalyticalFlow:
 
         init_graph(mock_llm, engines)
 
-        # Patch _get_data to avoid actual DB calls
         with patch("src.core.agent.nodes.tool_nodes._get_data") as mock_data:
             mock_data.return_value = pd.DataFrame({
                 "date": pd.date_range("2025-01-01", periods=30),
@@ -110,22 +110,17 @@ class TestAnalyticalFlow:
             })
             result = run_agent_graph("Forecast revenue for P001")
 
-        assert result["dag_source"] == "pre_compiled"
+        assert result["dag_source"] == "dynamic"
         assert result["route_called"] == "forecast_predict"
-        assert "forecast_total_revenue" in result["raw_data"]
+        assert "forecast_total_revenue" in result["raw_data"]["s1"]
+        mock_llm.generate_json.assert_called()
 
 
 class TestDataLookupFlow:
     """Test NL2SQL data_lookup intent through the LangGraph pipeline."""
 
-    def test_data_lookup_uses_precompiled_dag(self) -> None:
+    def test_data_lookup_uses_fast_path_dag(self) -> None:
         mock_llm = MagicMock()
-        mock_llm.generate_json.return_value = {
-            "intent": "data_lookup",
-            "confidence": 0.95,
-            "extracted_params": {"query": "Total revenue for P001"},
-        }
-        mock_llm.generate.return_value = "P001 total revenue is $220."
 
         engines = _mock_engines()
         engines["nl2sql_engine"].ask.return_value = {
@@ -140,9 +135,9 @@ class TestDataLookupFlow:
         init_graph(mock_llm, engines)
         result = run_agent_graph("What is the total revenue for P001?")
 
-        assert result["dag_source"] == "pre_compiled"
+        assert result["dag_source"] == "regex_fast_path"
         assert result["route_called"] == "nl2sql_query"
-        assert result["raw_data"]["row_count"] == 1
+        assert result["raw_data"]["s1"]["row_count"] == 1
         engines["nl2sql_engine"].ask.assert_called_once()
 
 
