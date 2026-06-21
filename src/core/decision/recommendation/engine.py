@@ -121,20 +121,14 @@ class RecommendationEngine:
                 except Exception:
                     pass
 
-            # Determine risk category based on volatility and overall confidence
+            # Determine risk category
             volatility_val = "HIGH" if abs(delta_pct) > 15 else "MEDIUM" if abs(delta_pct) > 5 else "LOW"
-            if volatility_val == "HIGH":
+            if volatility_val == "HIGH" or overall_conf < 0.60:
                 risk_category = "High"
-            elif volatility_val == "MEDIUM":
-                if overall_conf < 0.60:
-                    risk_category = "High"
-                else:
-                    risk_category = "Medium"
-            else:  # LOW volatility
-                if overall_conf < 0.50:
-                    risk_category = "Medium"
-                else:
-                    risk_category = "Low"
+            elif volatility_val == "MEDIUM" or overall_conf < 0.75:
+                risk_category = "Medium"
+            else:
+                risk_category = "Low"
 
             # Rich, action-specific rollback strategy from config
             rollback = self.rollback_strategies.get(

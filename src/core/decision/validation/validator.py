@@ -226,10 +226,10 @@ class ValidationEngine:
             "n_control": int(len(control))
         }
 
-    def validate(self, hypothesis: Dict[str, Any], product_id: str = "P001", query: Optional[str] = None) -> Dict[str, Any]:
+    def validate(self, hypothesis: Dict[str, Any], product_id: str = "P001") -> Dict[str, Any]:
         """
         Runs the full validation suite against a candidate hypothesis.
-        Uses parsed query percentage when available, otherwise IQR-based change_pct.
+        Now uses IQR-based data-driven change_pct instead of fixed ±10%.
         """
         original_df = self.df
         if self.df is None:
@@ -262,24 +262,9 @@ class ValidationEngine:
             # 2. Run Sensitivity
             sensitivity = self.run_sensitivity_lookup(driver_key, product_id)
             
-            # 3. Run Forecast counterfactual — parse query percent or default to IQR-based
+            # 3. Run Forecast counterfactual — IQR-based data-driven change_pct
             is_negative_change = "cut" in hypothesis.get("title", "").lower() or "reduce" in hypothesis.get("title", "").lower() or "drop" in hypothesis.get("title", "").lower() or "lower" in hypothesis.get("title", "").lower()
-            
-            change_pct = None
-            if query:
-                import re
-                match = re.search(r"(\d+(?:\.\d+)?)\s*%", query)
-                if match:
-                    try:
-                        parsed_val = float(match.group(1))
-                        # Bounded between min and max config bounds
-                        change_pct = float(np.clip(parsed_val, self.change_pct_min, self.change_pct_max))
-                    except Exception:
-                        pass
-                        
-            if change_pct is None:
-                change_pct = self._compute_iqr_change_pct(driver_col, product_id)
-                
+            change_pct = self._compute_iqr_change_pct(driver_col, product_id)
             if is_negative_change:
                 change_pct = -change_pct
             

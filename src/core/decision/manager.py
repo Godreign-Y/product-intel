@@ -108,7 +108,7 @@ class DecisionManager:
                     cand["title"], cand["affected_kpis"]
                 )
                 f_validation = executor.submit(
-                    self.validator.validate, cand, product_id, query
+                    self.validator.validate, cand, product_id
                 )
                 evidence = f_evidence.result()
                 validation = f_validation.result()
