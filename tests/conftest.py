@@ -7,11 +7,10 @@ import os
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-from src.api.main import app
-from src.api.dependencies import get_historical_data
-
 @pytest.fixture(scope="module")
 def client():
+    from src.api.main import app
+
     with TestClient(app) as c:
         yield c
 

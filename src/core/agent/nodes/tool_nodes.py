@@ -201,7 +201,25 @@ def _nl2sql_query(params: dict[str, Any], engines: dict[str, Any]) -> dict[str, 
     nl2sql_engine = engines.get("nl2sql_engine")
     if nl2sql_engine is None:
         raise RuntimeError("NL2SQL engine is not initialized.")
-    return nl2sql_engine.ask(params.get("query", ""))
+    query = params.get("query", "")
+    if isinstance(query, str) and query.strip().lower().startswith("select"):
+        from src.core.nl2sql.executor import execute_sql
+        from src.core.nl2sql.validator import validate_sql
+
+        db_engine = getattr(nl2sql_engine, "_db_engine", None)
+        if db_engine is None:
+            raise RuntimeError("NL2SQL engine does not expose a database engine for direct SQL execution.")
+        validated_sql = validate_sql(query)
+        result = execute_sql(db_engine, validated_sql)
+        return {
+            "query": query,
+            "sql": validated_sql,
+            "columns": result["columns"],
+            "rows": result["rows"],
+            "row_count": result["row_count"],
+            "truncated": result["truncated"],
+        }
+    return nl2sql_engine.ask(query)
 
 
 def _repository_search(params: dict[str, Any], engines: dict[str, Any]) -> dict[str, Any]:

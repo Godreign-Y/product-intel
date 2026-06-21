@@ -10,6 +10,7 @@ from typing import Any
 
 from src.core.agent.state import AgentState
 from src.core.agent.registry.capability_registry import get_tool_descriptions_for_prompt
+from src.core.agent.registry.data_registry import get_data_summary_for_prompt
 from src.core.llm import LLMClient
 from src.utils.logger import setup_logger
 
@@ -48,40 +49,12 @@ def synthesize_fast_response(state: AgentState, llm_client: LLMClient) -> dict[s
 
     if intent == "meta_query":
         tools_str = get_tool_descriptions_for_prompt()
-        query = state.get("user_query", "What can you do?")
-        try:
-            response = llm_client.generate(
-                messages=[
-                    {
-                        "role": "system", 
-                        "content": (
-                            "You are a helpful Business Intelligence AI. The user is asking about your capabilities or data access. "
-                            f"Here is the list of your capabilities:\n\n{tools_str}\n\n"
-                            "Answer the user's specific query concisely and professionally based ONLY on these capabilities."
-                        )
-                    },
-                    {"role": "user", "content": query},
-                ],
-                temperature=0.2,
-                max_tokens=600,
-            )
-            return {
-                "final_response": response,
-                "raw_data": {},
-                "route_called": "meta_query",
-            }
-        except Exception as e:
-            logger.error(f"Meta query synthesis failed: {e}")
-            return {
-                "final_response": (
-                    "Here is an overview of my capabilities and the types of analysis I can perform:\n\n"
-                    f"```text\n{tools_str}\n```\n\n"
-                    "You can ask me to forecast revenue, explain metric drops, simulate business scenarios, "
-                    "or recommend pricing and marketing strategies."
-                ),
-                "raw_data": {},
-                "route_called": "meta_query",
-            }
+        data_str = get_data_summary_for_prompt()
+        return {
+            "final_response": "",
+            "raw_data": {"tools_str": tools_str, "data_str": data_str},
+            "route_called": "meta_query",
+        }
 
     if state.get("is_blocked"):
         return {
@@ -135,6 +108,32 @@ def synthesize_analytical_response_stream(
                     resp += f"\n\n> **Note:** {notes}"
                 yield resp
                 return
+
+    # Handle Meta Query Streaming
+    if route == "meta_query":
+        query = state.get("user_query", "What can you do?")
+        tools_str = raw_data.get("tools_str", "")
+        data_str = raw_data.get("data_str", "")
+        system_msg = (
+            "You are a helpful Business Intelligence AI. The user is asking about your capabilities or data access. "
+            f"Here is the list of your capabilities:\n\n{tools_str}\n\n"
+            f"Here is the available data context:\n\n{data_str}\n\n"
+            "Answer the user's specific query concisely and professionally based ONLY on these capabilities and data context."
+        )
+        try:
+            yield from llm_client.generate_stream(
+                messages=[
+                    {"role": "system", "content": system_msg},
+                    {"role": "user", "content": query},
+                ],
+                temperature=0.2,
+                max_tokens=600,
+                model_tier="fast"
+            )
+        except Exception as e:
+            logger.error(f"Meta query synthesis failed: {e}")
+            yield "Here is an overview of my capabilities. You can ask me to forecast revenue, explain metric drops, simulate business scenarios, or recommend pricing and marketing strategies."
+        return
 
     # Generic LLM synthesis for single or multi-step results
     try:

@@ -312,7 +312,12 @@ class AnomalyDetectionEngine:
         df_hist = self.df_historical
         if df_hist is None:
             from src.api.dependencies import get_historical_df_from_db
-            df_hist = get_historical_df_from_db()
+            target_ts = pd.to_datetime(date)
+            lookback_start = (target_ts - pd.Timedelta(days=120)).strftime("%Y-%m-%d")
+            df_hist = get_historical_df_from_db(
+                start_date=lookback_start,
+                end_date=target_ts.strftime("%Y-%m-%d"),
+            )
             
         if date is None:
             df_hist_copy = df_hist.copy()

@@ -116,6 +116,21 @@ def execute_dag(state: AgentState, engines: dict[str, Any]) -> dict[str, Any]:
         if tool_id in _QUERY_PARAM_TOOLS and "query" not in params:
             params["query"] = state.get("user_query", "")
 
+        # 4b. Enforce capability schema required parameters
+        from src.core.agent.registry.capability_registry import CAPABILITY_REGISTRY
+        schema = CAPABILITY_REGISTRY.get(tool_id, {}).get("input_schema", {})
+        missing_required = []
+        for param_name, spec in schema.items():
+            if spec.get("required") and param_name not in params:
+                missing_required.append(param_name)
+        
+        if missing_required:
+            error_msg = f"Step {step_id} ({tool_id}) failed: Missing required parameters: {missing_required}. (Check if a previous step failed to output them)."
+            logger.error(error_msg)
+            errors.append(error_msg)
+            step_results[step_id] = {"error": error_msg}
+            continue
+
         # 5. Execute Tool
         logger.info(f"Executing step {step_id}: {tool_id} with params {params}")
         try:

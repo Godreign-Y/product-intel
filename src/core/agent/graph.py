@@ -68,7 +68,14 @@ def _build_graph() -> Any:
 
     # ── Linear edges ─────────────────────────────────────────────────
     graph.add_edge("fast_response", END)
-    graph.add_edge("dag_planner", "dag_executor")
+    graph.add_conditional_edges(
+        "dag_planner",
+        _route_after_planning,
+        {
+            "end": END,
+            "dag_executor": "dag_executor",
+        },
+    )
     graph.add_edge("dag_executor", "validator")
 
     # ── Conditional routing from validator ───────────────────────────
@@ -137,6 +144,13 @@ def _route_after_classification(state: AgentState) -> str:
     if state["intent"] == "data_lookup" and "execution_plan" in state:
         return "dag_executor"
     return "dag_planner"
+
+
+def _route_after_planning(state: AgentState) -> str:
+    """End early when planning produced a clarification response."""
+    if state.get("final_response"):
+        return "end"
+    return "dag_executor"
 
 
 def _route_after_validation(state: AgentState) -> str:

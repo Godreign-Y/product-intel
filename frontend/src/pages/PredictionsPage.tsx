@@ -12,6 +12,7 @@ import { Badge } from '../components/ui/Badge';
 import { Table } from '../components/ui/Table';
 import { useTheme } from '../context/ThemeContext';
 import { CHART_COLORS, getChartScales } from '../utils/chartTheme';
+import { themeConfig } from '../theme.config';
 
 export default function PredictionsPage() {
   const { selectedProduct, selectedCategory, startDate, endDate } = useFilters();
@@ -48,7 +49,7 @@ export default function PredictionsPage() {
             pointRadius: trendData.history.length > 30 ? 0 : 4,
             pointHoverRadius: 6,
             pointBackgroundColor: CHART_COLORS.sienna,
-            pointBorderColor: isDark ? CHART_COLORS.cashmere : '#fff',
+            pointBorderColor: isDark ? CHART_COLORS.cashmere : themeConfig.palette.cashmereLightMode,
             pointBorderWidth: 2,
           },
         ],

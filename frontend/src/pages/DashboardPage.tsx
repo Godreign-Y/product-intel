@@ -171,10 +171,10 @@ export default function DashboardPage() {
                     style={{
                       borderColor:
                         data.inventoryData.stockout_risk === 'High'
-                          ? 'rgba(196, 92, 74, 0.35)'
+                          ? 'var(--danger-bg)'
                           : data.inventoryData.stockout_risk === 'Medium'
-                            ? 'rgba(165, 90, 50, 0.35)'
-                            : 'rgba(107, 158, 120, 0.35)',
+                            ? 'var(--warning-bg)'
+                            : 'var(--success-bg)',
                     }}
                   >
                     <label>Stockout Risk</label>

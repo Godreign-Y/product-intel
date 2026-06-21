@@ -82,7 +82,7 @@ export default function ExperimentsPage() {
                   </form>
                   <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
                     {['pricing experiments', 'checkout conversion', 'marketing campaigns'].map(t => (
-                      <button key={t} onClick={() => { setSearchQuery(t); setTimeout(() => refetchSearch(), 100); }} className="severity-tag low" style={{ cursor: 'pointer', border: 'none', background: 'rgba(255,255,255,0.04)' }}>"{t.split(' ')[0]}"</button>
+                      <button key={t} onClick={() => { setSearchQuery(t); setTimeout(() => refetchSearch(), 100); }} className="severity-tag low" style={{ cursor: 'pointer', border: 'none', background: 'var(--bg-card)' }}>"{t.split(' ')[0]}"</button>
                     ))}
                   </div>
                 </div>
@@ -96,7 +96,7 @@ export default function ExperimentsPage() {
                       <button
                         key={t}
                         className="nav-button"
-                        style={{ justifyContent: 'center', backgroundColor: insightsTopic === t ? 'var(--primary-glow)' : 'rgba(255,255,255,0.02)', color: insightsTopic === t ? 'var(--primary-hover)' : 'var(--text-secondary)', border: insightsTopic === t ? '1px solid rgba(139, 92, 246, 0.2)' : '1px solid var(--border-color)', padding: '10px' }}
+                        style={{ justifyContent: 'center', backgroundColor: insightsTopic === t ? 'var(--calm-sienna-muted)' : 'var(--bg-card)', color: insightsTopic === t ? 'var(--calm-sienna)' : 'var(--text-secondary)', border: insightsTopic === t ? '1px solid var(--border-focus)' : '1px solid var(--border-default)', padding: '10px' }}
                         onClick={() => handleExtractInsights(t)}
                       >
                         {t.toUpperCase()}
@@ -120,7 +120,7 @@ export default function ExperimentsPage() {
                 </div>
                 <div className="detail-section" style={{ marginTop: '20px', borderTop: '1px solid var(--border-color)', paddingTop: '16px' }}>
                   <h4 style={{ fontSize: '13px', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '10px' }}>Business Summary Report</h4>
-                  <div className="chat-bubble assistant" style={{ width: '100%', maxWidth: '100%', padding: '16px', border: '1px solid var(--border-color)', borderRadius: '10px', backgroundColor: 'rgba(255,255,255,0.01)' }} dangerouslySetInnerHTML={{ __html: renderMarkdown(selectedItemDetail.human_readable_text) }} />
+                  <div className="chat-bubble assistant" style={{ width: '100%', maxWidth: '100%', padding: '16px', border: '1px solid var(--border-default)', borderRadius: '10px', backgroundColor: 'var(--bg-card)' }} dangerouslySetInnerHTML={{ __html: renderMarkdown(selectedItemDetail.human_readable_text) }} />
                 </div>
               </div>
             ) : <p style={{ textAlign: 'center', padding: '40px', color: 'var(--text-muted)' }}>Select an experiment to read audit reports.</p>
@@ -132,7 +132,7 @@ export default function ExperimentsPage() {
                 <h3 style={{ fontSize: '15px', color: 'var(--text-secondary)', textTransform: 'uppercase', margin: 0 }}>Matched results (found {searchResults.results.length})</h3>
                 {searchResults.results.map((res: any, idx: number) => (
                   <div key={idx} className="chart-card" style={{ padding: '16px' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: '10px', marginBottom: '12px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid var(--border-subtle)', paddingBottom: '10px', marginBottom: '12px' }}>
                       <h4 style={{ margin: 0, fontSize: '15px' }}>{res.experiment.type}</h4>
                     </div>
                     <p style={{ fontSize: '13px', margin: 0, color: 'var(--text-secondary)' }}><strong>Findings:</strong> {res.structured_json?.learnings}</p>
@@ -150,7 +150,7 @@ export default function ExperimentsPage() {
                     <h3 style={{ margin: 0, fontSize: '16px', display: 'flex', alignItems: 'center', gap: '6px' }}><Sparkles size={16} style={{ color: 'var(--warning)' }} /> Recurring Learnings</h3>
                   </div>
                 </div>
-                <div style={{ borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: '12px', marginTop: '12px' }}>
+                <div style={{ borderTop: '1px solid var(--border-subtle)', paddingTop: '12px', marginTop: '12px' }}>
                   <p style={{ fontSize: '13px', color: 'var(--text-secondary)', lineHeight: '1.5', margin: '0 0 16px 0' }}>{insightsResult.synthesized_rules.learnings}</p>
                 </div>
               </div>

@@ -93,10 +93,10 @@ export default function SettingsPage() {
                       >
                         <div className="theme-preview-label">Dark</div>
                         <div className="theme-preview-swatches">
-                          <div className="theme-preview-swatch" style={{ background: '#0E211D' }} />
-                          <div className="theme-preview-swatch" style={{ background: '#0B2420' }} />
-                          <div className="theme-preview-swatch" style={{ background: '#A55A32' }} />
-                          <div className="theme-preview-swatch" style={{ background: '#E7DED2' }} />
+                          <div className="theme-preview-swatch" style={{ background: 'var(--calm-bush-deep)' }} />
+                          <div className="theme-preview-swatch" style={{ background: 'var(--calm-bush)' }} />
+                          <div className="theme-preview-swatch" style={{ background: 'var(--calm-sienna)' }} />
+                          <div className="theme-preview-swatch" style={{ background: 'var(--calm-cashmere)' }} />
                         </div>
                       </button>
                       <button
@@ -106,10 +106,10 @@ export default function SettingsPage() {
                       >
                         <div className="theme-preview-label">Light</div>
                         <div className="theme-preview-swatches">
-                          <div className="theme-preview-swatch" style={{ background: '#D5C8B6' }} />
-                          <div className="theme-preview-swatch" style={{ background: '#E2D6C0' }} />
-                          <div className="theme-preview-swatch" style={{ background: '#A55A32' }} />
-                          <div className="theme-preview-swatch" style={{ background: '#0B2420' }} />
+                          <div className="theme-preview-swatch" style={{ background: 'var(--calm-cashmere-light-mode)' }} />
+                          <div className="theme-preview-swatch" style={{ background: 'var(--calm-oak-light-mode)' }} />
+                          <div className="theme-preview-swatch" style={{ background: 'var(--calm-sienna)' }} />
+                          <div className="theme-preview-swatch" style={{ background: 'var(--calm-bush)' }} />
                         </div>
                       </button>
                     </div>

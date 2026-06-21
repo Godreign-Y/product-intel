@@ -122,7 +122,7 @@ export default function WorkspacePage() {
                 msg.text
               )}
               {msg.meta && (
-                <div style={{ marginTop: '8px', fontSize: '11px', color: 'var(--text-muted)', borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '6px' }}>
+                <div style={{ marginTop: '8px', fontSize: '11px', color: 'var(--text-muted)', borderTop: '1px solid var(--border-subtle)', paddingTop: '6px' }}>
                   Routed to: <code>{msg.meta.route}</code>
                 </div>
               )}

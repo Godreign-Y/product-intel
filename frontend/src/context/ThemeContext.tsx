@@ -1,6 +1,8 @@
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
+import { injectThemeVariables } from '../utils/themeInjector';
+import { ThemeMode } from '../theme.config';
 
-type Theme = 'light' | 'dark';
+type Theme = ThemeMode;
 
 interface ThemeContextValue {
   theme: Theme;
@@ -21,7 +23,7 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   });
 
   useEffect(() => {
-    document.documentElement.setAttribute('data-theme', theme);
+    injectThemeVariables(theme);
     localStorage.setItem(STORAGE_KEY, theme);
   }, [theme]);
 
