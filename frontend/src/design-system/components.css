@@ -316,9 +316,9 @@
 
 /* ── Cards ── */
 .card {
-  background: var(--bg-card);
+  background-color: var(--bg-card);
   border: 1px solid var(--border-subtle);
-  border-radius: 24px;
+  border-radius: 22px;
   backdrop-filter: blur(20px) saturate(1.1);
   -webkit-backdrop-filter: blur(20px) saturate(1.1);
   box-shadow: var(--shadow-sm);
@@ -565,9 +565,9 @@
 }
 
 .filter-select:focus, .filter-input:focus {
-  border-color: var(--calm-sienna);
+  border-color: var(--cozy-rose);
   background: var(--bg-card);
-  box-shadow: 0 0 0 3px rgba(165, 90, 50, 0.08);
+  box-shadow: 0 0 0 3px rgba(184, 107, 107, 0.1);
 }
 
 /* ── Trend Stats ── */

@@ -114,13 +114,10 @@ export const ThreeDInteractiveBackground: React.FC = () => {
       const focalLength = 700;
 
       // Extract current theme colors dynamically
-      const siennaHex = themeConfig.palette.sienna;
-      const oakHex = themeConfig.palette.oak;
-      const siennaRgb = hexToRgb(siennaHex);
-      const oakRgb = hexToRgb(oakHex);
-
-      const colorRGB = theme === 'light' ? oakRgb : siennaRgb;
-      const baseAlpha = theme === 'light' ? 0.24 : 0.16;
+      const lightRgb = hexToRgb(themeConfig.palette.oak);
+      const darkRgb = hexToRgb(themeConfig.palette.nightWarm);
+      const colorRGB = theme === 'light' ? lightRgb : darkRgb;
+      const baseAlpha = theme === 'light' ? 0.42 : 0.34;
 
       // Create a map to store 2D coordinates for grid drawing
       const projectedPoints: { x: number; y: number; alpha: number }[][] = [];
@@ -188,7 +185,7 @@ export const ThreeDInteractiveBackground: React.FC = () => {
               ctx.moveTo(pt.x, pt.y);
               ctx.lineTo(nextColPt.x, nextColPt.y);
               ctx.strokeStyle = `rgba(${colorRGB.r}, ${colorRGB.g}, ${colorRGB.b}, ${alpha * 0.95})`;
-              ctx.lineWidth = theme === 'light' ? 1.15 : 0.8;
+              ctx.lineWidth = theme === 'light' ? 1.35 : 1.15;
               ctx.stroke();
             }
           }
@@ -202,7 +199,7 @@ export const ThreeDInteractiveBackground: React.FC = () => {
               ctx.moveTo(pt.x, pt.y);
               ctx.lineTo(nextRowPt.x, nextRowPt.y);
               ctx.strokeStyle = `rgba(${colorRGB.r}, ${colorRGB.g}, ${colorRGB.b}, ${alpha * 0.95})`;
-              ctx.lineWidth = theme === 'light' ? 1.15 : 0.8;
+              ctx.lineWidth = theme === 'light' ? 1.35 : 1.15;
               ctx.stroke();
             }
           }
@@ -239,7 +236,7 @@ export const ThreeDInteractiveBackground: React.FC = () => {
           const screenY = centerY + (y2 * focalLength) / cameraZ;
 
           const depthRatio = Math.max(0, Math.min(1, (cameraZ - 400) / 1500));
-          const pAlpha = (1 - depthRatio) * (theme === 'light' ? 0.45 : 0.32);
+          const pAlpha = (1 - depthRatio) * (theme === 'light' ? 0.62 : 0.5);
 
           // Draw small glowing particle dot
           ctx.beginPath();
@@ -273,7 +270,7 @@ export const ThreeDInteractiveBackground: React.FC = () => {
         height: '100vh',
         zIndex: 0, // Draw behind everything but above base layer
         pointerEvents: 'none',
-        opacity: 0.85,
+        opacity: theme === 'light' ? 0.62 : 0.55,
         mixBlendMode: theme === 'light' ? 'multiply' : 'screen',
       }}
     />

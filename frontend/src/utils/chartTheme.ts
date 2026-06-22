@@ -17,10 +17,10 @@ export const CHART_COLORS = {
     themeConfig.palette.danger // replaced hardcoded #8B7355 with danger for consistency
   ],
   paletteAlpha: [
-    'rgba(165, 90, 50, 0.7)', // Or ideally use themeConfig if we want alpha. I'll stick to a mix for now, but Chart.js works better with hex/rgba strings. Let's use the actual themeConfig palette.
-    'rgba(11, 36, 32, 0.6)',
-    'rgba(205, 176, 141, 0.7)',
-    'rgba(107, 158, 120, 0.6)',
+    'rgba(122, 114, 104, 0.65)',
+    'rgba(82, 76, 68, 0.55)',
+    'rgba(201, 191, 176, 0.65)',
+    'rgba(107, 143, 150, 0.55)',
   ],
 };
 

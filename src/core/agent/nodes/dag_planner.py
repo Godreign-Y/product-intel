@@ -181,7 +181,9 @@ def normalize_dag(
     entities = extract_query_entities(query, extracted_params)
     normalized = _normalize_steps(dag, query, entities)
     normalized = _inject_discovery_steps(normalized, query, entities)
-    return _apply_query_entities(normalized, query, entities)
+    normalized = _sanitize_input_from(normalized, query)
+    normalized = _apply_query_entities(normalized, query, entities)
+    return _fill_required_params(normalized, query, entities)
 
 
 def _apply_query_entities(
@@ -443,6 +445,155 @@ def _inject_discovery_steps(
     return shifted
 
 
+def _sanitize_input_from(
+    dag: list[dict[str, Any]],
+    query: str,
+) -> list[dict[str, Any]]:
+    """Drop input_from mappings whose source step cannot actually supply the field."""
+    if not dag:
+        return dag
+
+    step_by_id = {str(s.get("step_id")): s for s in dag}
+    updated: list[dict[str, Any]] = []
+
+    for step in dag:
+        step_copy = dict(step)
+        input_from = dict(step_copy.get("input_from") or {})
+        depends_on = list(step_copy.get("depends_on") or [])
+
+        for param_name, mapping in list(input_from.items()):
+            if isinstance(mapping, dict):
+                source_step = str(mapping.get("step", ""))
+                source_field = mapping.get("field") or param_name
+            else:
+                parts = str(mapping).split(".", 1)
+                source_step = parts[0]
+                source_field = parts[1] if len(parts) == 2 else param_name
+
+            source = step_by_id.get(source_step, {})
+            if not source or not _step_can_supply_field(source, source_field, query):
+                input_from.pop(param_name, None)
+                if source_step in depends_on and not any(
+                    (input_from.get(k, {}).get("step") if isinstance(input_from.get(k), dict) else "")
+                    == source_step
+                    for k in input_from
+                ):
+                    depends_on = [d for d in depends_on if d != source_step]
+
+        step_copy["input_from"] = input_from
+        step_copy["depends_on"] = depends_on
+        updated.append(step_copy)
+
+    return updated
+
+
+def _fill_required_params(
+    dag: list[dict[str, Any]],
+    query: str,
+    entities: dict[str, Any] | None,
+) -> list[dict[str, Any]]:
+    """Fill missing required params using entities, prior steps, or safe defaults."""
+    if not dag:
+        return dag
+
+    from src.core.nl2sql.dates import get_reference_date
+
+    step_by_id = {str(s.get("step_id")): s for s in dag}
+    updated: list[dict[str, Any]] = []
+
+    for idx, step in enumerate(dag):
+        step_copy = dict(step)
+        tool_id = step_copy.get("tool_id", "")
+        schema = CAPABILITY_REGISTRY.get(tool_id, {}).get("input_schema", {})
+        params = dict(step_copy.get("params") or {})
+        input_from = dict(step_copy.get("input_from") or {})
+        depends_on = list(step_copy.get("depends_on") or [])
+
+        for param_name, spec in schema.items():
+            if not spec.get("required"):
+                continue
+
+            if param_name in input_from:
+                mapping = input_from[param_name]
+                source_step_id = (
+                    str(mapping.get("step"))
+                    if isinstance(mapping, dict)
+                    else str(mapping).split(".", 1)[0]
+                )
+                source = step_by_id.get(source_step_id, {})
+                if not _step_can_supply_field(source, param_name, query):
+                    input_from.pop(param_name, None)
+                    if source_step_id in depends_on and not any(
+                        (input_from.get(k, {}).get("step") if isinstance(input_from.get(k), dict) else "")
+                        == source_step_id
+                        for k in input_from
+                    ):
+                        depends_on = [d for d in depends_on if d != source_step_id]
+
+            if param_name in params or param_name in input_from:
+                continue
+
+            entity_val = None
+            if entities:
+                entity_val = entities.get(param_name)
+                if entity_val is None and param_name == "target_date":
+                    entity_val = entities.get("date")
+
+            if entity_val is not None:
+                if param_name in ("date", "target_date"):
+                    from src.core.nl2sql.dates import resolve_date
+                    parsed = resolve_date(entity_val)
+                    if parsed is not None:
+                        params[param_name] = parsed.strftime("%Y-%m-%d")
+                        continue
+                else:
+                    params[param_name] = entity_val
+                    continue
+
+            if param_name in ("date", "target_date"):
+                for prior in reversed(dag[:idx]):
+                    prior_id = str(prior.get("step_id"))
+                    prior_tool = prior.get("tool_id", "")
+                    if prior_tool in ("forecast_predict", "analytics_trend", "anomaly_rank_products"):
+                        input_from[param_name] = {"step": prior_id, "field": param_name}
+                        if prior_id not in depends_on:
+                            depends_on.append(prior_id)
+                        break
+                else:
+                    params[param_name] = get_reference_date().strftime("%Y-%m-%d")
+
+            elif param_name == "product_id" and entities and entities.get("product_id"):
+                if _query_explicitly_targets_product(query, str(entities["product_id"])):
+                    params["product_id"] = entities["product_id"]
+
+        step_copy["params"] = params
+        step_copy["input_from"] = input_from
+        step_copy["depends_on"] = depends_on
+        updated.append(step_copy)
+
+    return updated
+
+
+def _step_can_supply_field(
+    source_step: dict[str, Any],
+    field: str,
+    user_query: str,
+) -> bool:
+    """Whether a planned source step is expected to expose `field` in its output."""
+    tool_id = source_step.get("tool_id", "")
+    if tool_id == "nl2sql_query":
+        return _nl2sql_supplies_field(source_step, field, user_query)
+    if tool_id == "forecast_predict":
+        return field in ("product_id", "date", "target_date")
+    if tool_id == "analytics_trend":
+        return field in ("date", "target_date")
+    if tool_id == "anomaly_rank_products":
+        return field in ("product_id", "date", "target_date")
+    if tool_id == "anomaly_detect":
+        return field in ("product_id", "date", "target_date")
+    return field in ("product_id", "category", "date", "target_date")
+
+
 def _nl2sql_supplies_field(
     step: dict[str, Any],
     field: str,
@@ -451,14 +602,30 @@ def _nl2sql_supplies_field(
     """True when an NL2SQL step's query is expected to return this field."""
     query_text = str(step.get("params", {}).get("query", "")).lower()
     combined = f"{query_text} {user_query.lower()}"
+
     if field == "product_id":
-        return True
+        return (
+            "product_id" in combined
+            or _PRODUCT_ID_PATTERN.search(combined) is not None
+            or _is_discovery_nl2sql_step(step)
+        )
     if field == "category":
         return "category" in combined
     if field in ("date", "target_date"):
+        if re.search(r"\bselect\b", query_text):
+            select_match = re.search(r"\bselect\b(.*?)\bfrom\b", query_text, re.I | re.S)
+            if select_match:
+                select_cols = select_match.group(1).lower()
+                if "date" in select_cols or _DATE_LITERAL.search(select_cols):
+                    return True
+            return False
         if _DATE_LITERAL.search(combined):
             return True
-        return any(term in combined for term in _TEMPORAL_TERMS)
+        if re.search(r"\breturn\b[^.]*\bdate\b", combined):
+            return True
+        if "date" in combined and _is_discovery_nl2sql_step(step):
+            return True
+        return False
     return False
 
 

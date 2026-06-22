@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="8" height="8" viewBox="0 0 8 8">
+  <defs>
+    <pattern id="weave-dark" width="8" height="8" patternUnits="userSpaceOnUse">
+      <rect width="8" height="8" fill="transparent"/>
+      <!-- warm horizontal threads (subtle yellow) -->
+      <line x1="0" y1="1" x2="8" y2="1" stroke="#D4C48E" stroke-width="0.35" opacity="0.08"/>
+      <line x1="0" y1="5" x2="8" y2="5" stroke="#D4C48E" stroke-width="0.3" opacity="0.06"/>
+      <!-- cool vertical threads (blue-green) -->
+      <line x1="1" y1="0" x2="1" y2="8" stroke="#8EB4BC" stroke-width="0.35" opacity="0.07"/>
+      <line x1="5" y1="0" x2="5" y2="8" stroke="#8EB4BC" stroke-width="0.3" opacity="0.05"/>
+      <!-- cross weave neutral -->
+      <line x1="0" y1="3" x2="8" y2="3" stroke="#C8D4D0" stroke-width="0.25" opacity="0.05"/>
+      <line x1="0" y1="7" x2="8" y2="7" stroke="#C8D4D0" stroke-width="0.25" opacity="0.04"/>
+      <line x1="3" y1="0" x2="3" y2="8" stroke="#C8D4D0" stroke-width="0.25" opacity="0.05"/>
+      <line x1="7" y1="0" x2="7" y2="8" stroke="#C8D4D0" stroke-width="0.25" opacity="0.04"/>
+    </pattern>
+  </defs>
+  <rect width="100%" height="100%" fill="url(#weave-dark)"/>
+</svg>

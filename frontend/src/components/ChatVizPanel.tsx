@@ -1,13 +1,31 @@
 import React from 'react';
 import { Bar, Line, Doughnut } from 'react-chartjs-2';
 import 'chart.js/auto';
-import { RefreshCw } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
 import { getChartLegend, getChartScales } from '../utils/chartTheme';
 import { ChatVisualization } from '../types';
 
+const MUTED_PALETTE = ['#7A7268', '#A89E8E', '#524C44', '#C9BFB0', '#6B8F96'];
+
 interface ChatVizPanelProps {
   visualizations: ChatVisualization[];
+}
+
+function applyMutedPalette(data: ChatVisualization['data']) {
+  if (!data?.datasets) return data;
+  return {
+    ...data,
+    datasets: data.datasets.map((ds: Record<string, unknown>, i: number) => ({
+      ...ds,
+      backgroundColor: Array.isArray(ds.backgroundColor)
+        ? (ds.backgroundColor as string[]).map((_, j) => MUTED_PALETTE[j % MUTED_PALETTE.length])
+        : MUTED_PALETTE[i % MUTED_PALETTE.length],
+      borderColor: MUTED_PALETTE[i % MUTED_PALETTE.length],
+      borderWidth: ds.borderWidth ?? 1.5,
+      pointBackgroundColor: MUTED_PALETTE[0],
+      pointBorderColor: 'transparent',
+    })),
+  };
 }
 
 function VizChart({ viz }: { viz: ChatVisualization }) {
@@ -24,8 +42,12 @@ function VizChart({ viz }: { viz: ChatVisualization }) {
           {viz.subtitle && <span className="chat-viz-card__subtitle">{viz.subtitle}</span>}
         </div>
         <div className="chat-viz-card__loader">
-          <RefreshCw size={16} className="spin" />
-          <span>Rendering chart…</span>
+          <div style={{ width: '100%' }}>
+            <div className="chat-viz-skeleton chat-viz-skeleton--wide" />
+            <div className="chat-viz-skeleton chat-viz-skeleton--mid" style={{ marginTop: 12 }} />
+            <div className="chat-viz-skeleton chat-viz-skeleton--chart" />
+          </div>
+          <span>Building chart…</span>
         </div>
       </div>
     );
@@ -37,7 +59,7 @@ function VizChart({ viz }: { viz: ChatVisualization }) {
         <div className="chat-viz-card__header">
           <span className="chat-viz-card__title">{viz.title}</span>
         </div>
-        <p className="chat-viz-card__error">Could not render this chart.</p>
+        <p className="chat-viz-card__error">This chart could not be rendered.</p>
       </div>
     );
   }
@@ -46,11 +68,14 @@ function VizChart({ viz }: { viz: ChatVisualization }) {
     responsive: true,
     maintainAspectRatio: false,
     indexAxis: viz.index_axis === 'y' ? ('y' as const) : ('x' as const),
-    plugins: { legend, tooltip: { enabled: true } },
+    plugins: {
+      legend: viz.chart_type === 'doughnut' ? legend : { display: false },
+      tooltip: { enabled: true, padding: 12, cornerRadius: 8 },
+    },
     scales: viz.chart_type === 'doughnut' ? undefined : scales,
   };
 
-  const chartData = viz.data;
+  const chartData = applyMutedPalette(viz.data);
 
   return (
     <div className="chat-viz-card">
@@ -72,7 +97,7 @@ export default function ChatVizPanel({ visualizations }: ChatVizPanelProps) {
 
   return (
     <div className="chat-viz-gallery">
-      {visualizations.map(viz => (
+      {visualizations.map((viz) => (
         <VizChart key={viz.id} viz={viz} />
       ))}
     </div>

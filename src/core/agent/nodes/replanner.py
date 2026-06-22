@@ -1,94 +1,123 @@
 """
 Replanner Node — contextual re-planning after a validation failure.
 
-Receives the original query, the failed DAG, and the specific validation notes.
-Generates a new DAG, keeping successful steps intact where possible.
+Uses a fast deterministic patch for common wiring failures before falling
+back to a compact LLM replan.
 """
 
-from typing import Any
+from __future__ import annotations
+
 import json
+import re
+from typing import Any
 
 from src.core.agent.state import AgentState
 from src.core.agent.nodes.dag_planner import normalize_dag
-from src.core.agent.registry.capability_registry import get_tool_descriptions_for_prompt
+from src.core.agent.registry.capability_registry import CAPABILITY_REGISTRY
 from src.core.llm import LLMClient
 from src.utils.logger import setup_logger
 
 logger = setup_logger("replanner")
 
+_WIRING_FAILURE = re.compile(
+    r"Could not resolve input_from|Missing required parameters",
+    re.I,
+)
+
 _REPLANNER_SYSTEM_PROMPT = """\
 You are the DAG Replanner. A previous execution plan failed.
-Your job is to generate a NEW, corrected DAG that addresses the failure.
+Generate a corrected minimal DAG.
 
-## CAPABILITIES
-{tool_descriptions}
-
-## CONTEXT
 Original Query: "{query}"
-Validation Failure Notes:
-{notes}
+Failure: {notes}
 
-Previous Failed DAG:
+Failed plan:
 {previous_dag}
 
-## INSTRUCTIONS
-1. Analyze why the previous DAG failed (e.g. invalid params, missing data, incorrect tool).
-2. Generate a NEW DAG. 
-3. If the failure was due to missing data (like an empty NL2SQL result), try a different approach or different parameters (e.g. broaden the date range if applicable).
-4. If a step previously succeeded, you may re-run it or skip it and just run the missing parts (but the safest is to generate the full corrected chain).
-5. DO NOT invent or hallucinate parameter values. If a required parameter is not explicitly provided in the query, leave it out of 'params' entirely or map it using 'input_from' if it comes from a previous step's output. DO NOT use placeholder values like 'P001' unless explicitly requested.
-6. Output format is exactly the same as the original planner.
+Rules:
+- Fix only what failed. Keep successful tool choices when possible.
+- Put explicit product_id/date from the user query directly in params — do NOT wire date from NL2SQL unless that step SELECTs date.
+- For explain_prediction after forecast_predict, wire date from the forecast step or put the latest data date in params.
+- Never invent placeholder values.
 
-## OUTPUT FORMAT
-Respond with ONLY a JSON object. No text before or after.
+Output ONLY JSON:
 {{
-  "reasoning": "<why this new plan fixes the failure>",
-  "dag": [
-    {{
-      "step_id": "s1",
-      "tool_id": "<tool_id>",
-      "params": {{ ... }},
-      "input_from": {{}},
-      "depends_on": []
-    }}
-  ]
+  "reasoning": "...",
+  "dag": [{{"step_id": "s1", "tool_id": "...", "params": {{}}, "input_from": {{}}, "depends_on": []}}]
 }}
 """
+
+
+def _compact_tool_list() -> str:
+    lines: list[str] = []
+    for tool_id, spec in CAPABILITY_REGISTRY.items():
+        schema = spec.get("input_schema", {})
+        required = [k for k, v in schema.items() if v.get("required")]
+        lines.append(f"- {tool_id}: {spec.get('description', '')[:120]} | required: {required}")
+    return "\n".join(lines)
+
+
+def try_deterministic_replan(state: AgentState) -> dict[str, Any] | None:
+    """Patch common wiring failures without calling the LLM."""
+    notes = state.get("validation_notes", "")
+    if not _WIRING_FAILURE.search(notes):
+        return None
+
+    query = state.get("user_query", "")
+    previous_plan = state.get("execution_plan", [])
+    if not previous_plan:
+        return None
+
+    fixed_plan = normalize_dag(previous_plan, query, state.get("extracted_params"))
+    if fixed_plan == previous_plan:
+        return None
+
+    logger.info("Deterministic replanner patched DAG without LLM.")
+    return {
+        "execution_plan": fixed_plan,
+        "dag_source": "deterministic_retry",
+        "retry_count": state.get("retry_count", 0) + 1,
+        "validation_passed": False,
+    }
+
 
 def replan_dag(state: AgentState, llm_client: LLMClient) -> dict[str, Any]:
     """Generate a corrected DAG after validation failure."""
     retry_count = state.get("retry_count", 0)
-    
+
     if retry_count >= 1:
         logger.warning("Max retries reached. Forcing pass to synthesizer.")
         return {
-            "validation_passed": True, # Force pass
-            "validation_notes": state.get("validation_notes", "") + "\nMax retries reached."
+            "validation_passed": True,
+            "validation_notes": state.get("validation_notes", "") + "\nMax retries reached.",
         }
-        
+
     logger.info("Validation failed. Initiating Replanner.")
-    
+
+    deterministic = try_deterministic_replan(state)
+    if deterministic:
+        logger.info(f"Patched plan:\n{json.dumps(deterministic['execution_plan'], indent=2)}")
+        return deterministic
+
     query = state.get("user_query", "")
     notes = state.get("validation_notes", "")
     previous_dag = json.dumps(state.get("execution_plan", []), indent=2)
-    tool_desc = get_tool_descriptions_for_prompt()
-    
+
     system_prompt = _REPLANNER_SYSTEM_PROMPT.format(
-        tool_descriptions=tool_desc,
         query=query,
         notes=notes,
-        previous_dag=previous_dag
+        previous_dag=previous_dag,
     )
 
     try:
         result = llm_client.generate_json(
             messages=[
                 {"role": "system", "content": system_prompt},
-                {"role": "user", "content": "Generate the corrected DAG."}
+                {"role": "user", "content": "Generate the corrected DAG."},
             ],
-            temperature=0.2,
-            max_tokens=800,
-            model_tier="capable"
+            temperature=0.1,
+            max_tokens=600,
+            model_tier="fast",
         )
         new_dag = normalize_dag(
             result.get("dag", []),
@@ -98,7 +127,6 @@ def replan_dag(state: AgentState, llm_client: LLMClient) -> dict[str, Any]:
         reasoning = result.get("reasoning", "")
         logger.info(f"Replanner generated new DAG with {len(new_dag)} steps.")
         logger.info(f"Replanner Reasoning: {reasoning}")
-        logger.info(f"New Execution Plan:\n{json.dumps(new_dag, indent=2)}")
 
         return {
             "execution_plan": new_dag,
@@ -111,5 +139,5 @@ def replan_dag(state: AgentState, llm_client: LLMClient) -> dict[str, Any]:
         logger.error(f"Replanner failed: {e}. Forcing pass to synthesizer.")
         return {
             "validation_passed": True,
-            "validation_notes": notes + f"\nReplanner failed to generate fallback: {e}"
+            "validation_notes": notes + f"\nReplanner failed to generate fallback: {e}",
         }

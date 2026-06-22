@@ -1,4 +1,5 @@
 @import './design-system/components.css';
+@import './styles/cozy-pinboard.css';
 
 /* ── Base Reset & Typography ── */
 *, *::before, *::after {

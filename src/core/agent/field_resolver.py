@@ -43,4 +43,35 @@ def resolve_field(source_data: Any, field: str) -> Any:
                 if val is not None:
                     return val
 
+        if candidate in ("date", "target_date"):
+            daily = source_data.get("daily_details") or source_data.get("history") or []
+            if isinstance(daily, list) and daily:
+                last = daily[-1]
+                if isinstance(last, dict):
+                    val = last.get("date") or last.get("target_date")
+                    if val is not None:
+                        return str(val)[:10]
+
+    return None
+
+
+def resolve_from_prior_steps(
+    step_results: dict[str, Any],
+    plan: list[dict[str, Any]],
+    current_step_id: str,
+    field: str,
+) -> Any:
+    """Walk prior successful steps (newest first) to resolve a missing field."""
+    prior_ids = [
+        str(s.get("step_id"))
+        for s in plan
+        if str(s.get("step_id")) != current_step_id
+    ]
+    for step_id in reversed(prior_ids):
+        result = step_results.get(step_id)
+        if not isinstance(result, dict) or result.get("error"):
+            continue
+        val = resolve_field(result, field)
+        if val is not None:
+            return val
     return None

@@ -9,7 +9,7 @@ and accumulates results in step_results while respecting dependency ordering.
 from typing import Any
 
 from src.core.agent.registry.capability_registry import CAPABILITY_REGISTRY
-from src.core.agent.field_resolver import resolve_field
+from src.core.agent.field_resolver import resolve_field, resolve_from_prior_steps
 from src.core.agent.state import AgentState
 from src.core.agent.nodes.tool_nodes import execute_tool
 from src.core.nl2sql.dates import resolve_date
@@ -109,6 +109,7 @@ def execute_dag(state: AgentState, engines: dict[str, Any]) -> dict[str, Any]:
 
         if unresolved_inputs:
             from src.core.agent.nodes.dag_planner import extract_query_entities
+            from src.core.nl2sql.dates import get_reference_date
 
             entities = extract_query_entities(
                 state.get("user_query", ""),
@@ -118,6 +119,13 @@ def execute_dag(state: AgentState, engines: dict[str, Any]) -> dict[str, Any]:
                 fallback = entities.get(param_name)
                 if fallback is None and param_name == "target_date":
                     fallback = entities.get("date")
+                if fallback is None:
+                    fallback = resolve_from_prior_steps(
+                        step_results, plan, str(step_id), param_name
+                    )
+                if fallback is None and param_name in ("date", "target_date"):
+                    if tool_id in ("explain_prediction", "anomaly_detect", "anomaly_rank_products"):
+                        fallback = get_reference_date().strftime("%Y-%m-%d")
                 if fallback is None:
                     continue
                 if param_name in _DATE_PARAM_KEYS:

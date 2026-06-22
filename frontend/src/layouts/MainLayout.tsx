@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { NavLink, Outlet } from 'react-router-dom';
+import { NavLink, Outlet, useLocation } from 'react-router-dom';
 import {
   LayoutDashboard,
   TrendingUp,
@@ -11,23 +11,26 @@ import {
   X,
   Sun,
   Moon,
+  Sparkles,
 } from 'lucide-react';
 import { FilterProvider } from '../components/FilterContext';
 import { useTheme } from '../context/ThemeContext';
 import { ThreeDInteractiveBackground } from '../components/ThreeDInteractiveBackground';
 
 const NAV_ITEMS = [
-  { to: '/', end: true, icon: LayoutDashboard, label: 'Dashboard' },
-  { to: '/predictions', icon: TrendingUp, label: 'Analytics' },
-  { to: '/recommendations', icon: AlertTriangle, label: 'Anomalies' },
-  { to: '/experiments', icon: BookOpen, label: 'Repository' },
-  { to: '/workspace', icon: MessageSquare, label: 'AI Assistant' },
-  { to: '/settings', icon: Settings, label: 'Settings' },
+  { to: '/', end: true, icon: LayoutDashboard, label: 'Dashboard', hint: 'Your board' },
+  { to: '/predictions', icon: TrendingUp, label: 'Analytics', hint: 'Trends' },
+  { to: '/recommendations', icon: AlertTriangle, label: 'Anomalies', hint: 'Alerts' },
+  { to: '/experiments', icon: BookOpen, label: 'Repository', hint: 'Archive' },
+  { to: '/workspace', icon: MessageSquare, label: 'AI Assistant', hint: 'Chat' },
+  { to: '/settings', icon: Settings, label: 'Settings', hint: 'Preferences' },
 ];
 
 export const MainLayout: React.FC = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const { theme, toggleTheme } = useTheme();
+  const location = useLocation();
+  const isAnomaliesPage = location.pathname === '/recommendations';
 
   const closeSidebar = () => setSidebarOpen(false);
 
@@ -49,28 +52,32 @@ export const MainLayout: React.FC = () => {
       />
 
       <div className="app-container">
-        <aside className={`sidebar ${sidebarOpen ? 'open' : ''}`}>
+        <aside className={`sidebar sidebar--cozy ${sidebarOpen ? 'open' : ''}`}>
           <div className="logo-container">
-            <img 
-              src="/favicon.svg" 
-              alt="ProductIntel Logo" 
-              style={{ width: 40, height: 40, objectFit: 'contain' }} 
+            <img
+              src="/favicon.svg"
+              alt="ProductIntel Logo"
+              style={{ width: 40, height: 40, objectFit: 'contain' }}
             />
             <div>
               <div className="logo-text">ProductIntel</div>
-              <div className="logo-tagline">Product Intelligence</div>
+              <div className="logo-tagline">curated intelligence</div>
             </div>
           </div>
 
-          <div className="nav-section-label">Navigation</div>
+          <div className="nav-section-label">
+            <Sparkles size={12} style={{ display: 'inline', marginRight: 6, verticalAlign: -1 }} />
+            Your pins
+          </div>
           <nav className="nav-links">
-            {NAV_ITEMS.map(({ to, end, icon: Icon, label }) => (
+            {NAV_ITEMS.map(({ to, end, icon: Icon, label, hint }) => (
               <NavLink
                 key={to}
                 to={to}
                 end={end}
                 className={({ isActive }) => `nav-button ${isActive ? 'active' : ''}`}
                 onClick={closeSidebar}
+                title={hint}
               >
                 <Icon size={18} strokeWidth={1.75} />
                 {label}
@@ -82,14 +89,14 @@ export const MainLayout: React.FC = () => {
             <button className="theme-toggle-btn" onClick={toggleTheme}>
               <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 {theme === 'dark' ? <Moon size={16} /> : <Sun size={16} />}
-                {theme === 'dark' ? 'Dark Mode' : 'Light Mode'}
+                {theme === 'dark' ? 'Evening mode' : 'Daylight mode'}
               </span>
               <span style={{ fontSize: 11, opacity: 0.6 }}>Toggle</span>
             </button>
           </div>
         </aside>
 
-        <main className="main-content">
+        <main className={`main-content ${isAnomaliesPage ? '' : 'page-cozy'}`}>
           <div className="page-enter">
             <Outlet />
           </div>

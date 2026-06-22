@@ -9,7 +9,19 @@ export function injectThemeVariables(mode: ThemeMode) {
 
   // 1. Inject Base Palette
   Object.entries(themeConfig.palette).forEach(([key, value]) => {
-    root.style.setProperty(`--calm-${toKebabCase(key)}`, value);
+    let prefix = '--calm-';
+    let cssKey = toKebabCase(key);
+    if (key.startsWith('cozy')) {
+      prefix = '--cozy-';
+      cssKey = toKebabCase(key.replace(/^cozy/, ''));
+    } else if (key.startsWith('stone')) {
+      prefix = '--stone-';
+      cssKey = key.replace(/^stone/, '');
+    } else if (key.startsWith('night')) {
+      prefix = '--calm-night-';
+      cssKey = toKebabCase(key.replace(/^night/, ''));
+    }
+    root.style.setProperty(`${prefix}${cssKey}`, value);
   });
 
   // 2. Inject Typography

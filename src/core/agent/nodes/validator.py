@@ -121,6 +121,22 @@ def _validate_single_nl2sql_result(query: str, result: Any) -> tuple[bool, str]:
     return True, "Validation passed."
 
 
+_ANALYTICAL_RESULT_KEYS = frozenset({
+    "daily_details", "positive_drivers", "negative_drivers", "kpis",
+    "metrics_comparison", "ranked_products", "prediction_value",
+    "explanation_summary", "optimized_forecast_sum", "baseline_forecast_sum",
+})
+
+
+def _has_analytical_payload(result: Any) -> bool:
+    if not isinstance(result, dict) or result.get("error"):
+        return False
+    if any(key in result for key in _ANALYTICAL_RESULT_KEYS):
+        return True
+    rows = result.get("rows")
+    return isinstance(rows, list) and len(rows) > 0
+
+
 def validate_results(state: AgentState) -> dict[str, Any]:
     """Validate step results for completeness, non-emptiness, and relevance."""
     plan = state.get("execution_plan", [])
@@ -169,12 +185,14 @@ def validate_results(state: AgentState) -> dict[str, Any]:
 
     has_valid_data = False
     has_structured_lookup = False
+    analytical_successes = 0
+    step_errors = 0
     for step_id in planned_step_ids:
         result = step_results.get(step_id)
         if not result or result == {}:
             notes.append(f"Step {step_id} returned empty result.")
         elif "error" in result:
-            passed = False
+            step_errors += 1
             notes.append(f"Step {step_id} failed: {result['error']}")
         elif "rows" in result and len(result["rows"]) == 0:
             notes.append(f"Step {step_id} executed but found 0 records.")
@@ -183,12 +201,22 @@ def validate_results(state: AgentState) -> dict[str, Any]:
             has_valid_data = True
         else:
             has_valid_data = True
+            if _has_analytical_payload(result):
+                analytical_successes += 1
 
     if not has_valid_data:
         passed = False
         notes.append("No valid data was produced by any step.")
+    elif step_errors > 0:
+        if analytical_successes > 0:
+            notes.append(
+                f"{step_errors} step(s) failed but {analytical_successes} analytical step(s) "
+                "produced usable data — continuing with partial results."
+            )
+        else:
+            passed = False
 
-    if has_valid_data and query and not has_structured_lookup:
+    if has_valid_data and query and not has_structured_lookup and analytical_successes == 0:
         summary_parts = []
         for step_id in planned_step_ids:
             result = step_results.get(step_id)
@@ -211,7 +239,7 @@ def validate_results(state: AgentState) -> dict[str, Any]:
                 similarity = float(np.dot(query_emb, res_emb))
                 logger.info(f"Validator semantic relevance score: {similarity:.3f}")
 
-                if similarity < 0.25:
+                if similarity < 0.18:
                     passed = False
                     notes.append(f"Low relevance score ({similarity:.3f}): The executed tools may not match the query.")
         except Exception as e:

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { RefreshCw, Palette, Bell, Shield, Database } from 'lucide-react';
+import { RefreshCw, Palette, Bell, Shield, Database, Home } from 'lucide-react';
 import { useSettings } from '../hooks/useSettings';
 import { LoadingState, ErrorState } from '../components/LoadingErrorState';
 import { Button } from '../components/ui/Button';
@@ -20,46 +20,45 @@ export default function SettingsPage() {
   const tabs: { id: SettingsTab; label: string; icon: React.ReactNode }[] = [
     { id: 'appearance', label: 'Appearance', icon: <Palette size={16} /> },
     { id: 'notifications', label: 'Notifications', icon: <Bell size={16} /> },
-    { id: 'data', label: 'Data & Sync', icon: <Database size={16} /> },
+    { id: 'data', label: 'Data & sync', icon: <Database size={16} /> },
     { id: 'security', label: 'Security', icon: <Shield size={16} /> },
   ];
 
   return (
     <>
-      <header className="page-header">
-        <div className="page-header-text">
-          <h1>Settings</h1>
-          <p>Configure appearance, notifications, and platform preferences</p>
+      <header className="pin-hero animate-fade-in">
+        <div>
+          <div className="pin-hero-eyebrow">
+            <Home size={14} />
+            Your nook
+          </div>
+          <h1>Make it feel like home</h1>
+          <p className="pin-hero-desc">
+            Tune the look, alerts, and connections — so the workspace matches how you like to work.
+          </p>
         </div>
-        <div className="page-header-actions">
-          <Button
-            variant="ghost"
-            size="sm"
-            icon={<RefreshCw size={14} />}
-            onClick={() => refetch()}
-          >
-            Reload
-          </Button>
-        </div>
+        <Button variant="ghost" size="sm" icon={<RefreshCw size={14} />} onClick={() => refetch()}>
+          Reload
+        </Button>
       </header>
 
       <div className="animate-fade-in">
         {isLoading ? (
-          <LoadingState message="Loading preferences..." />
+          <LoadingState message="Loading your preferences…" />
         ) : isError ? (
           <ErrorState
             message={error instanceof Error ? error.message : 'Error fetching settings'}
             onRetry={() => refetch()}
           />
         ) : (
-          <div className="settings-layout">
-            <nav className="settings-nav">
-              {tabs.map(tab => (
+          <div className="settings-nook">
+            <nav className="settings-nook-nav">
+              {tabs.map((tab) => (
                 <button
                   key={tab.id}
-                  className={`settings-nav-item ${activeTab === tab.id ? 'active' : ''}`}
+                  type="button"
+                  className={`settings-nook-tab ${activeTab === tab.id ? 'active' : ''}`}
                   onClick={() => setActiveTab(tab.id)}
-                  style={{ display: 'flex', alignItems: 'center', gap: 10 }}
                 >
                   {tab.icon}
                   {tab.label}
@@ -67,49 +66,47 @@ export default function SettingsPage() {
               ))}
             </nav>
 
-            <div className="settings-section">
+            <div className="settings-nook-panel">
               {activeTab === 'appearance' && (
                 <>
-                  <div>
-                    <h2 className="settings-group-title">Appearance</h2>
-                    <p className="settings-group-desc">
-                      Customize the visual experience. The Calm palette adapts seamlessly across modes.
-                    </p>
+                  <div className="settings-nook-intro">
+                    <h2>Appearance</h2>
+                    <p>Warm daylight or soft evening — pick what feels right.</p>
                   </div>
 
-                  <Card padding="lg">
+                  <Card padding="lg" className="pin-card">
                     <h3 className="card-title" style={{ marginBottom: 'var(--space-2)' }}>
-                      Color Mode
+                      Color mode
                     </h3>
                     <p style={{ fontSize: 'var(--text-sm)', color: 'var(--text-muted)', marginBottom: 'var(--space-4)' }}>
-                      Choose between light and dark themes
+                      Switch between light and dark themes
                     </p>
 
-                    <div className="theme-preview">
+                    <div className="theme-preview theme-preview--cozy">
                       <button
+                        type="button"
                         className={`theme-preview-card theme-preview-dark ${theme === 'dark' ? 'selected' : ''}`}
                         onClick={() => setTheme('dark')}
-                        type="button"
                       >
-                        <div className="theme-preview-label">Dark</div>
+                        <div className="theme-preview-label">Evening</div>
                         <div className="theme-preview-swatches">
                           <div className="theme-preview-swatch" style={{ background: 'var(--calm-bush-deep)' }} />
-                          <div className="theme-preview-swatch" style={{ background: 'var(--calm-bush)' }} />
-                          <div className="theme-preview-swatch" style={{ background: 'var(--calm-sienna)' }} />
+                          <div className="theme-preview-swatch" style={{ background: 'var(--cozy-rose)' }} />
+                          <div className="theme-preview-swatch" style={{ background: 'var(--cozy-sage)' }} />
                           <div className="theme-preview-swatch" style={{ background: 'var(--calm-cashmere)' }} />
                         </div>
                       </button>
                       <button
+                        type="button"
                         className={`theme-preview-card theme-preview-light ${theme === 'light' ? 'selected' : ''}`}
                         onClick={() => setTheme('light')}
-                        type="button"
                       >
-                        <div className="theme-preview-label">Light</div>
+                        <div className="theme-preview-label">Daylight</div>
                         <div className="theme-preview-swatches">
-                          <div className="theme-preview-swatch" style={{ background: 'var(--calm-cashmere-light-mode)' }} />
-                          <div className="theme-preview-swatch" style={{ background: 'var(--calm-oak-light-mode)' }} />
-                          <div className="theme-preview-swatch" style={{ background: 'var(--calm-sienna)' }} />
-                          <div className="theme-preview-swatch" style={{ background: 'var(--calm-bush)' }} />
+                          <div className="theme-preview-swatch" style={{ background: 'var(--cozy-linen)' }} />
+                          <div className="theme-preview-swatch" style={{ background: 'var(--cozy-blush)' }} />
+                          <div className="theme-preview-swatch" style={{ background: 'var(--cozy-rose)' }} />
+                          <div className="theme-preview-swatch" style={{ background: 'var(--cozy-sage)' }} />
                         </div>
                       </button>
                     </div>
@@ -117,28 +114,28 @@ export default function SettingsPage() {
                     <div style={{ marginTop: 'var(--space-6)' }}>
                       <Toggle
                         checked={theme === 'dark'}
-                        onChange={checked => setTheme(checked ? 'dark' : 'light')}
-                        label="Dark mode"
-                        description="Use charcoal and bush tones for reduced eye strain"
+                        onChange={(checked) => setTheme(checked ? 'dark' : 'light')}
+                        label="Evening mode"
+                        description="Softer contrast for late-night sessions"
                       />
                     </div>
                   </Card>
 
-                  <Card padding="lg">
+                  <Card padding="lg" className="pin-card">
                     <h3 className="card-title" style={{ marginBottom: 'var(--space-4)' }}>
                       Typography
                     </h3>
                     <div className="settings-row">
-                      <span className="settings-row-label">Typeface</span>
-                      <span className="settings-row-value">IBM Plex Sans</span>
+                      <span className="settings-row-label">Display</span>
+                      <span className="settings-row-value">Newsreader</span>
+                    </div>
+                    <div className="settings-row">
+                      <span className="settings-row-label">Body</span>
+                      <span className="settings-row-value">Inter</span>
                     </div>
                     <div className="settings-row">
                       <span className="settings-row-label">Style</span>
-                      <span className="settings-row-value">Single-family, weight-based hierarchy</span>
-                    </div>
-                    <div className="settings-row">
-                      <span className="settings-row-label">Design System</span>
-                      <span className="settings-row-value">Calm v1.0</span>
+                      <span className="settings-row-value">Stone minimal</span>
                     </div>
                   </Card>
                 </>
@@ -146,28 +143,28 @@ export default function SettingsPage() {
 
               {activeTab === 'notifications' && (
                 <>
-                  <div>
-                    <h2 className="settings-group-title">Notifications</h2>
-                    <p className="settings-group-desc">Manage how you receive alerts and updates</p>
+                  <div className="settings-nook-intro">
+                    <h2>Notifications</h2>
+                    <p>Choose how we reach you when something needs attention.</p>
                   </div>
-                  <Card padding="lg">
+                  <Card padding="lg" className="pin-card">
                     <Toggle
                       checked={notifications}
                       onChange={setNotifications}
                       label="Push notifications"
-                      description="Receive real-time alerts for critical anomalies"
+                      description="Real-time alerts for critical anomalies"
                     />
                     <Toggle
                       checked={anomalyAlerts}
                       onChange={setAnomalyAlerts}
                       label="Anomaly alerts"
-                      description="Get notified when high-severity anomalies are detected"
+                      description="Notify when high-severity issues appear"
                     />
                     <Toggle
                       checked={emailDigest}
                       onChange={setEmailDigest}
-                      label="Weekly email digest"
-                      description="Summary of performance metrics every Monday"
+                      label="Weekly digest"
+                      description="A Monday summary of the week&apos;s metrics"
                     />
                   </Card>
                 </>
@@ -175,21 +172,21 @@ export default function SettingsPage() {
 
               {activeTab === 'data' && (
                 <>
-                  <div>
-                    <h2 className="settings-group-title">Data & Sync</h2>
-                    <p className="settings-group-desc">Database connections and data refresh settings</p>
+                  <div className="settings-nook-intro">
+                    <h2>Data & sync</h2>
+                    <p>Where your numbers come from and when they last updated.</p>
                   </div>
-                  <Card padding="lg">
+                  <Card padding="lg" className="pin-card">
                     <div className="settings-row">
-                      <span className="settings-row-label">Data Source</span>
+                      <span className="settings-row-label">Data source</span>
                       <span className="settings-row-value">PostgreSQL / Neon</span>
                     </div>
                     <div className="settings-row">
-                      <span className="settings-row-label">Last Sync</span>
-                      <span className="settings-row-value">Auto (on demand)</span>
+                      <span className="settings-row-label">Last sync</span>
+                      <span className="settings-row-value">On demand</span>
                     </div>
                     <div className="settings-row">
-                      <span className="settings-row-label">Current Theme (API)</span>
+                      <span className="settings-row-label">Theme (API)</span>
                       <span className="settings-row-value">{settings?.theme ?? theme}</span>
                     </div>
                   </Card>
@@ -198,22 +195,22 @@ export default function SettingsPage() {
 
               {activeTab === 'security' && (
                 <>
-                  <div>
-                    <h2 className="settings-group-title">Security</h2>
-                    <p className="settings-group-desc">Access control and session management</p>
+                  <div className="settings-nook-intro">
+                    <h2>Security</h2>
+                    <p>Access and session settings for your account.</p>
                   </div>
-                  <Card padding="lg">
+                  <Card padding="lg" className="pin-card">
                     <div className="settings-row">
-                      <span className="settings-row-label">API Authentication</span>
-                      <span className="settings-row-value">Bearer Token</span>
+                      <span className="settings-row-label">API authentication</span>
+                      <span className="settings-row-value">Bearer token</span>
                     </div>
                     <div className="settings-row">
-                      <span className="settings-row-label">Session Timeout</span>
+                      <span className="settings-row-label">Session timeout</span>
                       <span className="settings-row-value">24 hours</span>
                     </div>
                     <div className="settings-row">
-                      <span className="settings-row-label">Two-Factor Auth</span>
-                      <span className="settings-row-value">Not configured</span>
+                      <span className="settings-row-label">Two-factor auth</span>
+                      <span className="settings-row-value">Not set up</span>
                     </div>
                   </Card>
                 </>
