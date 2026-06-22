@@ -98,8 +98,9 @@ This document details the complete integration plan for replacing the existing `
 
 **`RecommendationsPage.tsx`**:
 - Currently expects a single `AnomalyResponse` payload. It maps `expected_value` vs `actual_value` for a specific day.
-- **Change Required**: The page must now consume `anomalies` list and `graph_data`. The "Anomaly Detail Card" should be updated to show the *Summary Block* (Total anomalies, Positive Spikes, Negative Drops) instead of a single day's severity score.
-- **Driver Explanations**: Remove the SHAP `top_drivers` progress bars. Replace them with the `Threshold Method: Percentile (Top 5%)` text explanation.
+- **Change Required**: The page must now consume `anomalies` list and `graph_data`. The "Anomaly Detail Card" should be updated to show the *Summary Block* (Total Anomalies, Positive Opportunities, Negative Risks, Largest Positive Spike + Date, Largest Negative Drop + Date). The raw "Anomaly Score" must be completely removed from the UI.
+- **Driver Explanations**: Remove the SHAP `top_drivers` progress bars and the entire Anomaly Detail explanation panel. The dashboard should focus purely on the visual chart and the data table.
+- **Filters**: Implement a Date Range filter strictly limited to the backend's supported options: "Last 30 Days", "Last 90 Days", "Last 180 Days", and "All Time". Do NOT expose custom date pickers.
 - **Top Products List**: Ensure the backend's rewritten `/top-products` continues to supply the sidebar list.
 
 ---
@@ -107,11 +108,11 @@ This document details the complete integration plan for replacing the existing `
 ## 7. UI Compatibility Plan
 
 **Constraint: UI styling must remain exactly as-is.**
-- **Color mappings**:
-  - Map `status = 'Attention Required'` to the existing `critical` or `danger` CSS classes (red colors).
-  - Map `status = 'Opportunity'` to the existing `success` CSS classes (green colors).
+- **Color mappings & Terminology**:
+  - Map `status = 'Risk'` to the existing `critical` or `danger` CSS classes (red colors). Always label negative anomalies as "Risk".
+  - Map `status = 'Opportunity'` to the existing `success` CSS classes (green colors). Always label positive anomalies as "Opportunity".
 - **Cards**: The structure of the detail cards stays the same, but the data binding changes. E.g., replace `percentage_change` with `deviation_pct`.
-- **Top Drivers UI**: Instead of removing the block completely, reuse the container to render the `anomalies` table/grid.
+- **Data Table UI**: Reuse the old Top Drivers container to render the `anomalies` table/grid. Include columns: Date, KPI Value, Deviation %, and Classification. Do NOT include the raw Anomaly Score.
 
 ---
 
@@ -121,9 +122,9 @@ The frontend will consume the newly exposed `graph_data` array to draw a compreh
 - **Line Chart**: Render a standard line chart (e.g., using Recharts/Chart.js if installed) mapping `date` on the X-axis and `value` on the Y-axis.
 - **Anomaly Overlays**: Iterate through `graph_data`. Where `is_anomaly == true`, draw a scatter dot or marker on the line chart.
 - **Color Coding Markers**:
-  - Red markers for points where `anomaly_type == 'negative_drop'`
-  - Green markers for points where `anomaly_type == 'positive_spike'`
-- **Tooltips**: Hovering over a point displays `Value`, `Score (0-100)`, and `Deviation %`.
+  - Red markers for points where `anomaly_type == 'negative_drop'` (Risk)
+  - Green markers for points where `anomaly_type == 'positive_spike'` (Opportunity)
+- **Tooltips**: Hovering over a point displays `Date`, `Classification`, `KPI Value`, and `Deviation %`. Do NOT display the raw `Score (0-100)`.
 
 ---
 
@@ -136,8 +137,8 @@ The new JSON contract for `/anomaly/detect`:
   "summary": {
     "total_points": 365,
     "anomaly_count": 18,
-    "positive_anomalies": 10,
-    "negative_anomalies": 8,
+    "positive_opportunities": 10,
+    "negative_risks": 8,
     "threshold_method": "percentile",
     "threshold_percentile": 95,
     "threshold_value": 82.4
@@ -161,7 +162,7 @@ The new JSON contract for `/anomaly/detect`:
       "is_anomaly": true,
       "anomaly_type": "negative_drop",
       "deviation_pct": -45.2,
-      "status": "Attention Required"
+      "status": "Risk"
     }
   ]
 }
