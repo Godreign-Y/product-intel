@@ -36,15 +36,11 @@ class RecommendationEngine:
             
             title = hypo["title"]
             hyp_id = hypo["hypothesis_id"]
-            
-            # Map driver column based on hypothesis ID or keywords
-            driver = "discount_pct"
-            if "shi" in hyp_id.lower() or "shipping" in title.lower():
-                driver = "shipping_fee"
-            elif "pri" in hyp_id.lower() or "price" in title.lower() or "pricing" in title.lower():
-                driver = "avg_selling_price"
-            elif "spend" in title.lower() or "marketing" in title.lower():
-                driver = "marketing_spend"
+            adjudication = val_res.get("adjudication", {})
+            verdict = adjudication.get("verdict", "inconclusive")
+            conf_band = adjudication.get("confidence_band", "low")
+
+            driver = val_res.get("driver_col") or hypo.get("driver_variable") or "discount_pct"
 
             # Determine Action Type
             action_type = "PRICING_ADJUSTMENT"
@@ -59,6 +55,14 @@ class RecommendationEngine:
 
             # Formulate text
             rec_text = f"Action recommendation for {title}: "
+            if verdict == "contradicted":
+                rec_text += (
+                    "Validation evidence contradicts this hypothesis — treat as a low-priority exploratory option. "
+                )
+            elif verdict == "inconclusive":
+                rec_text += (
+                    "Validation is inconclusive — recommend a structured pilot before broader rollout. "
+                )
             if impact_pct > 0:
                 rec_text += f"Proceed with implementation to capture an estimated +{impact_pct:.2f}% improvement in target KPI."
             else:
@@ -69,7 +73,11 @@ class RecommendationEngine:
             
             # Check if experiment is required (confidence is low)
             overall_conf = conf_score.get("overall_confidence", 0.5)
-            needs_ab_test = overall_conf < self.immediate_rollout_threshold
+            needs_ab_test = (
+                verdict != "supported"
+                or conf_band != "high"
+                or overall_conf < self.immediate_rollout_threshold
+            )
             logger.debug(f"generate_recommendations: overall_confidence={overall_conf:.4f} vs threshold={self.immediate_rollout_threshold} -> needs_ab_test={needs_ab_test}")
             
             # Calculate estimated ROI proxy
@@ -185,7 +193,9 @@ class RecommendationEngine:
                 "needs_experimentation": needs_ab_test,
                 "rollback_strategy": rollback,
                 "risk_assessment": risk_assessment,
-                "confidence_score": overall_conf
+                "confidence_score": overall_conf,
+                "validation_verdict": verdict,
+                "validation_confidence_band": conf_band,
             })
             
         logger.info(f"generate_recommendations: Successfully formulated {len(recommendations)} tactical recommendations.")

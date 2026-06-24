@@ -35,7 +35,7 @@ def sqlite_engine():
 class TestNL2SQLEngineAsk:
     def test_ask_returns_rows(self, sqlite_engine) -> None:
         mock_llm = MagicMock()
-        mock_llm.generate_json.return_value = {
+        mock_llm.generate_compact.return_value = {
             "sql": (
                 "SELECT product_id, SUM(revenue) AS total_revenue "
                 "FROM product_performance GROUP BY product_id ORDER BY total_revenue DESC LIMIT 10"
@@ -53,7 +53,7 @@ class TestNL2SQLEngineAsk:
 
     def test_ask_retries_on_validation_failure(self, sqlite_engine) -> None:
         mock_llm = MagicMock()
-        mock_llm.generate_json.side_effect = [
+        mock_llm.generate_compact.side_effect = [
             {"sql": "DELETE FROM product_performance"},
             {
                 "sql": (
@@ -67,11 +67,11 @@ class TestNL2SQLEngineAsk:
 
         assert result["row_count"] == 1
         assert result["rows"][0]["cnt"] == 3
-        assert mock_llm.generate_json.call_count == 2
+        assert mock_llm.generate_compact.call_count == 2
 
     def test_ask_returns_error_after_retries(self, sqlite_engine) -> None:
         mock_llm = MagicMock()
-        mock_llm.generate_json.return_value = {"sql": "DELETE FROM product_performance"}
+        mock_llm.generate_compact.return_value = {"sql": "DELETE FROM product_performance"}
 
         engine = NL2SQLEngine(mock_llm, sqlite_engine)
         result = engine.ask("Delete everything")

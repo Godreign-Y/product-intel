@@ -28,8 +28,77 @@ validation:
   # Bounds for IQR-computed change_pct (±%)
   change_pct_min: 5.0
   change_pct_max: 25.0
+  # Below this |delta_pct| the forecast signal is inconclusive, not contradicting
+  negligible_effect_pct: 2.0
   # Minimum rows required for causal analysis
   causal_min_rows: 20
+  causal_p_inconclusive: 0.10
+  correlation_min_rows: 10
+  max_lag_days: 7
+  shap_top_n_features: 8
+
+  # Per-signal weights for adjudication (must sum to 1.0)
+  signal_weights:
+    forecast: 0.35
+    sensitivity: 0.25
+    historical: 0.15
+    causal: 0.10
+    correlation: 0.10
+    shap: 0.05
+
+  adjudication:
+    support_threshold: 0.60
+    contradict_threshold: 0.40
+    min_agreeing_families: 2
+    min_contradicting_families: 2
+    verdict_rank_multipliers:
+      supported: 1.0
+      inconclusive: 0.85
+      contradicted: 0.50
+
+  # Max |delta_pct| per driver/KPI before flagging implausible forecasts
+  plausibility_bounds:
+    discount_pct:
+      orders: { max_positive: 50, max_negative: 30 }
+      revenue: { max_positive: 40, max_negative: 25 }
+      profit: { max_positive: 20, max_negative: 40 }
+    avg_selling_price:
+      orders: { max_positive: 25, max_negative: 40 }
+      revenue: { max_positive: 35, max_negative: 30 }
+      profit: { max_positive: 30, max_negative: 25 }
+    marketing_spend:
+      revenue: { max_positive: 45, max_negative: 30 }
+      profit: { max_positive: 25, max_negative: 35 }
+      orders: { max_positive: 40, max_negative: 25 }
+    shipping_fee:
+      conversion_rate: { max_positive: 15, max_negative: 40 }
+      orders: { max_positive: 15, max_negative: 45 }
+    inventory_available:
+      orders: { max_positive: 50, max_negative: 35 }
+      revenue: { max_positive: 45, max_negative: 30 }
+
+  # Expected cross-KPI relationships when driver moves positively
+  cross_kpi_expectations:
+    discount_pct:
+      orders: positive
+      revenue: positive_or_mixed
+      profit: negative_or_mixed
+      conversion_rate: positive_or_mixed
+    avg_selling_price:
+      revenue: positive_or_mixed
+      orders: negative_or_mixed
+      profit: positive_or_mixed
+    marketing_spend:
+      revenue: positive
+      orders: positive_or_mixed
+      profit: positive_or_mixed
+    shipping_fee:
+      conversion_rate: negative_or_mixed
+      orders: negative_or_mixed
+      revenue: negative_or_mixed
+    inventory_available:
+      orders: positive
+      revenue: positive_or_mixed
 
 # --- Confidence Scorer ---
 confidence:

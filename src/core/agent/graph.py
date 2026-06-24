@@ -126,7 +126,7 @@ def _node_execute_dag(state: AgentState) -> dict[str, Any]:
 
 def _node_validate(state: AgentState) -> dict[str, Any]:
     """Node wrapper for result validation."""
-    return validate_results(state)
+    return validate_results(state, _llm_client)
 
 
 def _node_replan(state: AgentState) -> dict[str, Any]:

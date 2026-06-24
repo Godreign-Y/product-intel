@@ -1,6 +1,7 @@
 from typing import Dict, Any, List
 
 from src.core.decision.config_loader import load_decision_config
+from src.core.decision.validation.adjudicator import verdict_rank_multiplier
 from src.utils.logger import setup_logger
 
 logger = setup_logger("hypothesis_ranker")
@@ -77,6 +78,10 @@ class HypothesisRanker:
             # Configurable weighted composite rank score
             rank_score = round(float(self.w_confidence * overall_conf + self.w_impact * impact_score), 4)
 
+            adjudication = val_res.get("adjudication", {})
+            verdict = adjudication.get("verdict", "inconclusive")
+            rank_score = round(rank_score * verdict_rank_multiplier(verdict), 4)
+
             # Store causal ATE for tie-breaking
             ate_magnitude = abs(val_res.get("causal", {}).get("ate_estimate", 0.0))
             
@@ -100,16 +105,28 @@ class HypothesisRanker:
                 "confidence": conf_score,
                 "rank_score": rank_score,
                 "estimated_impact_pct": delta_pct,
-                "_ate_magnitude": ate_magnitude
+                "validation_verdict": verdict,
+                "validation_confidence_band": adjudication.get("confidence_band"),
+                "_ate_magnitude": ate_magnitude,
+                "_verdict_sort": {"supported": 0, "inconclusive": 1, "contradicted": 2}.get(verdict, 1),
             })
             
         # Sort descending by rank_score (prioritizing primary opportunities), tie-break by causal ATE magnitude
         logger.info("rank_hypotheses: Sorting ranked hypotheses prioritizing primary opportunities first.")
-        ranked = sorted(ranked, key=lambda x: (not x["hypothesis"].get("is_primary", True), -x["rank_score"], -x["_ate_magnitude"]))
+        ranked = sorted(
+            ranked,
+            key=lambda x: (
+                not x["hypothesis"].get("is_primary", True),
+                x["_verdict_sort"],
+                -x["rank_score"],
+                -x["_ate_magnitude"],
+            ),
+        )
 
-        # Clean internal tie-breaking field from output
+        # Clean internal tie-breaking fields from output
         for item in ranked:
             item.pop("_ate_magnitude", None)
+            item.pop("_verdict_sort", None)
 
         logger.info(f"rank_hypotheses: Rank sorting complete. Highest priority hypothesis: '{ranked[0]['hypothesis']['hypothesis_id']}' with score={ranked[0]['rank_score']:.4f}")
         return ranked

@@ -44,7 +44,7 @@ class TestFastPathGreetings:
         assert result["intent"] == "greeting"
         assert result["intent_confidence"] == 1.0
         assert result["is_blocked"] is False
-        mock_llm.generate_json.assert_not_called()
+        mock_llm.generate_compact.assert_not_called()
 
     def test_short_query_fast_path(self) -> None:
         mock_llm = MagicMock()
@@ -58,7 +58,7 @@ class TestLLMClassification:
 
     def test_forecast_intent(self) -> None:
         mock_llm = MagicMock()
-        mock_llm.generate_json.return_value = {
+        mock_llm.generate_compact.return_value = {
             "intent": "forecast_request",
             "confidence": 0.95,
             "extracted_params": {"product_id": "P001", "horizon_days": 30},
@@ -72,7 +72,7 @@ class TestLLMClassification:
 
     def test_out_of_scope_blocked(self) -> None:
         mock_llm = MagicMock()
-        mock_llm.generate_json.return_value = {
+        mock_llm.generate_compact.return_value = {
             "intent": "out_of_scope",
             "confidence": 0.9,
             "extracted_params": {},
@@ -90,7 +90,7 @@ class TestLLMFailureFallback:
 
     def test_fallback_on_exception(self) -> None:
         mock_llm = MagicMock()
-        mock_llm.generate_json.side_effect = RuntimeError("Connection timeout")
+        mock_llm.generate_compact.side_effect = RuntimeError("Connection timeout")
         state = _make_state("Show me the revenue trends with anomalies")
         result = classify_intent(state, mock_llm)
 

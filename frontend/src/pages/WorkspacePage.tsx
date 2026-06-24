@@ -4,7 +4,8 @@ import { MarkdownBody } from '../components/MarkdownBody';
 import { ThinkingIndicator } from '../components/ThinkingIndicator';
 import { useFilters } from '../components/FilterContext';
 import ChatVizPanel from '../components/ChatVizPanel';
-import { ChatVisualization, Message } from '../types';
+import { HypothesisTracker } from '../components/HypothesisTracker';
+import { ChatVisualization, HypothesisProgressItem, Message } from '../types';
 
 const STARTER_PROMPTS = [
   'Why did revenue dip last week?',
@@ -58,6 +59,75 @@ export default function WorkspacePage() {
     }
   }, [messages, isStreaming, currentLogs]);
 
+  const applyHypothesisEvent = (
+    prev: Message[],
+    data: Record<string, unknown>
+  ): Message[] => {
+    const newMsgs = [...prev];
+    const lastIdx = newMsgs.length - 1;
+    if (lastIdx < 0 || newMsgs[lastIdx].sender !== 'assistant') return prev;
+
+    const last = { ...newMsgs[lastIdx] };
+    const items: HypothesisProgressItem[] = [...(last.hypotheses || [])];
+    const notices: string[] = [...(last.hypothesisNotices || [])];
+    const eventType = String(data.event_type || data.type || '');
+
+    const upsert = (id: string, patch: Partial<HypothesisProgressItem>) => {
+      const idx = items.findIndex((h) => h.hypothesis_id === id);
+      if (idx >= 0) {
+        items[idx] = { ...items[idx], ...patch };
+      } else {
+        items.push({
+          hypothesis_id: id,
+          title: String(patch.title || id),
+          status: patch.status || 'pending',
+          ...patch,
+        });
+      }
+    };
+
+    if (eventType === 'hypothesis_batch_start') {
+      notices.push(String(data.message || 'Generating candidate hypotheses…'));
+      last.hypotheses = items;
+      last.hypothesisNotices = notices;
+    } else if (eventType === 'hypothesis_candidate') {
+      upsert(String(data.hypothesis_id), {
+        title: String(data.title || ''),
+        status: 'pending',
+      });
+    } else if (eventType === 'hypothesis_validating') {
+      upsert(String(data.hypothesis_id), {
+        title: String(data.title || ''),
+        status: 'validating',
+      });
+    } else if (eventType === 'hypothesis_validated') {
+      const verdict = String(data.verdict || data.status || 'inconclusive') as HypothesisProgressItem['status'];
+      upsert(String(data.hypothesis_id), {
+        title: String(data.title || ''),
+        status: verdict,
+        verdict,
+        confidence_band: data.confidence_band as string | undefined,
+        overall_confidence: data.overall_confidence as number | undefined,
+      });
+      if (verdict === 'contradicted') {
+        notices.push(`Hypothesis not accepted: "${data.title}" — evidence contradicts this claim.`);
+      } else if (verdict === 'inconclusive') {
+        notices.push(`Hypothesis not fully validated: "${data.title}" — insufficient cross-family evidence.`);
+      }
+    } else if (eventType === 'hypothesis_batch_complete') {
+      const rejected = Number(data.rejected || 0);
+      const supported = Number(data.supported || 0);
+      notices.push(
+        `Validation complete: ${supported} supported, ${rejected} contradicted, ${Number(data.total || 0) - supported - rejected} inconclusive.`
+      );
+    }
+
+    last.hypotheses = items;
+    last.hypothesisNotices = notices;
+    newMsgs[lastIdx] = last;
+    return newMsgs;
+  };
+
   const sendMessage = async (text: string) => {
     if (!text.trim() || isStreaming) return;
 
@@ -104,6 +174,8 @@ export default function WorkspacePage() {
                 const data = JSON.parse(dataStr);
                 if (data.type === 'status' || data.type === 'viz_planning') {
                   setCurrentLogs((prev) => [...prev, data.content]);
+                } else if (data.type === 'hypothesis_progress') {
+                  setMessages((prev) => applyHypothesisEvent(prev, data));
                 } else if (data.type === 'metadata') {
                   setMessages((prev) => {
                     const newMsgs = [...prev];
@@ -233,7 +305,9 @@ export default function WorkspacePage() {
           {messages.map((msg, index) => {
             const hasText = msg.text && msg.text.trim().length > 0;
             const hasViz = (msg.visualizations?.length ?? 0) > 0;
-            if (!hasText && !hasViz && msg.sender === 'assistant' && isStreaming && index === messages.length - 1) {
+            const hasHypotheses = (msg.hypotheses?.length ?? 0) > 0;
+            const hasHypothesisNotices = (msg.hypothesisNotices?.length ?? 0) > 0;
+            if (!hasText && !hasViz && !hasHypotheses && !hasHypothesisNotices && msg.sender === 'assistant' && isStreaming && index === messages.length - 1) {
               return null;
             }
 
@@ -243,6 +317,12 @@ export default function WorkspacePage() {
                   <MarkdownBody content={msg.text} />
                 ) : (
                   msg.text
+                )}
+                {msg.hypotheses && msg.hypotheses.length > 0 && (
+                  <HypothesisTracker items={msg.hypotheses} notices={msg.hypothesisNotices || []} />
+                )}
+                {!msg.hypotheses?.length && (msg.hypothesisNotices?.length ?? 0) > 0 && (
+                  <HypothesisTracker items={[]} notices={msg.hypothesisNotices || []} />
                 )}
                 {msg.visualizations && msg.visualizations.length > 0 && (
                   <ChatVizPanel visualizations={msg.visualizations} />
@@ -267,6 +347,20 @@ export default function WorkspacePage() {
           {isStreaming && (
             <div className="chat-bubble assistant">
               <ThinkingIndicator logs={currentLogs} />
+              {messages[messages.length - 1]?.hypotheses &&
+                messages[messages.length - 1].hypotheses!.length > 0 && (
+                  <HypothesisTracker
+                    items={messages[messages.length - 1].hypotheses!}
+                    notices={messages[messages.length - 1].hypothesisNotices || []}
+                  />
+                )}
+              {!(messages[messages.length - 1]?.hypotheses?.length) &&
+                (messages[messages.length - 1]?.hypothesisNotices?.length ?? 0) > 0 && (
+                  <HypothesisTracker
+                    items={[]}
+                    notices={messages[messages.length - 1].hypothesisNotices || []}
+                  />
+                )}
             </div>
           )}
           <div ref={messagesEndRef} />

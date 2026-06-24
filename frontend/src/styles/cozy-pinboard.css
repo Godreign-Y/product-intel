@@ -429,6 +429,115 @@
   color: var(--text-primary);
 }
 
+/* Hypothesis validation tracker (decision_ask streaming) */
+.hypothesis-tracker {
+  margin-top: var(--space-5);
+  padding: var(--space-5);
+  border-radius: 12px;
+  border: 1px solid var(--border-subtle);
+  background: var(--bg-elevated, rgba(255, 255, 255, 0.04));
+  max-width: 100%;
+}
+
+.hypothesis-tracker__title {
+  margin: 0 0 var(--space-4);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  color: var(--text-primary);
+}
+
+.hypothesis-tracker__processing {
+  font-weight: 400;
+  color: var(--text-muted);
+}
+
+.hypothesis-notices {
+  list-style: none;
+  margin: 0 0 var(--space-4);
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.hypothesis-notice {
+  font-size: var(--text-xs);
+  color: #c45c6a;
+  padding: var(--space-2) var(--space-3);
+  border-radius: 8px;
+  background: rgba(196, 92, 106, 0.08);
+  border-left: 3px solid #c45c6a;
+}
+
+.hypothesis-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  max-height: 220px;
+  overflow-y: auto;
+}
+
+.hypothesis-item {
+  padding: var(--space-3) var(--space-4);
+  border-radius: 10px;
+  border: 1px solid var(--border-subtle);
+  background: var(--bg-surface);
+}
+
+.hypothesis-item__row {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+}
+
+.hypothesis-item__badge {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 2px 8px;
+  border-radius: 999px;
+  flex-shrink: 0;
+}
+
+.hypothesis-item__title {
+  font-size: var(--text-sm);
+  color: var(--text-primary);
+  line-height: 1.4;
+}
+
+.hypothesis-item__meta {
+  display: block;
+  margin-top: var(--space-2);
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+}
+
+.hypothesis-item--pending .hypothesis-item__badge {
+  background: rgba(128, 128, 128, 0.15);
+  color: var(--text-muted);
+}
+
+.hypothesis-item--validating .hypothesis-item__badge {
+  background: rgba(90, 140, 200, 0.15);
+  color: #5a8cc8;
+}
+
+.hypothesis-item--supported .hypothesis-item__badge {
+  background: rgba(72, 160, 110, 0.15);
+  color: #48a06e;
+}
+
+.hypothesis-item--inconclusive .hypothesis-item__badge {
+  background: rgba(200, 160, 60, 0.15);
+  color: #c8a03c;
+}
+
+.hypothesis-item--contradicted .hypothesis-item__badge {
+  background: rgba(196, 92, 106, 0.15);
+  color: #c45c6a;
+}
+
 /* ── Repository ── */
 .repo-scrapbook {
   display: grid;

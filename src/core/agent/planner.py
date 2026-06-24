@@ -554,44 +554,91 @@ class LLMPlannerAgent:
                     "route_called": "",
                 }
                 
-                result = initial_state
+                import queue
+                import threading
+                import time
+                from src.core.decision.progress import clear_progress_buffer, set_progress_emitter
+
+                event_q: queue.Queue = queue.Queue()
+                clear_progress_buffer()
+                set_progress_emitter(lambda e: event_q.put(("hypothesis", e)))
+
+                result_holder: dict[str, Any] = {}
+                graph_error: list[Exception] = []
+
+                def _status_for_node(node_name: str, state: dict) -> str | None:
+                    if node_name == "intent_classifier":
+                        intent = state.get("intent", "analytical")
+                        conf = state.get("intent_confidence", 1.0)
+                        return f"Classified intent: {intent} ({conf * 100:.0f}% confidence)"
+                    if node_name == "dag_planner":
+                        plan = state.get("execution_plan", [])
+                        tool_ids = [
+                            s.get("tool_id", s.get("step_id", "?"))
+                            for s in plan
+                            if isinstance(s, dict)
+                        ]
+                        plan_str = f" ({', '.join(tool_ids)})" if tool_ids else ""
+                        return f"Formulating analytics plan{plan_str}…"
+                    if node_name == "dag_executor":
+                        steps = state.get("execution_plan", [])
+                        idx = state.get("current_step_index", 0)
+                        step = steps[idx] if steps and idx < len(steps) else {}
+                        step_label = step.get("tool_id", step.get("step_id", "")) if isinstance(step, dict) else str(step)
+                        if step_label == "decision_ask":
+                            return "Running decision intelligence — generating and validating hypotheses…"
+                        step_info = f" (Step {idx + 1}/{len(steps)}: {step_label})" if step_label else ""
+                        return f"Running calculations{step_info}…"
+                    if node_name == "validator":
+                        passed = state.get("validation_passed", True)
+                        return f"Validating output… validation {'passed' if passed else 'flagged issues'}."
+                    if node_name == "replanner":
+                        return "Adjusting plan for refinement…"
+                    if node_name == "fast_response":
+                        return "Generating fast summary…"
+                    return None
+
+                def _run_graph() -> None:
+                    try:
+                        acc = dict(initial_state)
+                        for event in _compiled_graph.stream(initial_state):
+                            for node_name, state_update in event.items():
+                                acc = {**acc, **state_update}
+                                msg = _status_for_node(node_name, acc)
+                                if msg:
+                                    event_q.put(("status", msg))
+                        result_holder["result"] = acc
+                    except Exception as exc:
+                        graph_error.append(exc)
+                    finally:
+                        event_q.put(("done", None))
+
                 yield f"data: {json.dumps({'type': 'status', 'content': 'Classifying query intent...'})}\n\n"
-                
-                # Stream node by node
-                for event in _compiled_graph.stream(initial_state):
-                    for node_name, state_update in event.items():
-                        # Update our local accumulated state
-                        result = {**result, **state_update}
-                        
-                        # Yield status updates for each node type
-                        if node_name == "intent_classifier":
-                            intent = result.get("intent", "analytical")
-                            conf = result.get("intent_confidence", 1.0)
-                            yield f"data: {json.dumps({'type': 'status', 'content': f'Classified intent: {intent} ({conf*100:.0f}% confidence)'})}\n\n"
-                        elif node_name == "dag_planner":
-                            plan = result.get("execution_plan", [])
-                            tool_ids = [
-                                s.get("tool_id", s.get("step_id", "?"))
-                                for s in plan
-                                if isinstance(s, dict)
-                            ]
-                            plan_str = f" ({', '.join(tool_ids)})" if tool_ids else ""
-                            yield f"data: {json.dumps({'type': 'status', 'content': f'Formulating analytics plan{plan_str}...'})}\n\n"
-                        elif node_name == "dag_executor":
-                            steps = result.get("execution_plan", [])
-                            idx = result.get("current_step_index", 0)
-                            step = steps[idx] if steps and idx < len(steps) else {}
-                            step_label = step.get("tool_id", step.get("step_id", "")) if isinstance(step, dict) else str(step)
-                            step_info = f" (Step {idx + 1}/{len(steps)}: {step_label})" if step_label else ""
-                            yield f"data: {json.dumps({'type': 'status', 'content': f'Running mathematical calculations{step_info}...'})}\n\n"
-                        elif node_name == "validator":
-                            passed = result.get("validation_passed", True)
-                            status_text = "passed" if passed else "flagged inconsistencies"
-                            yield f"data: {json.dumps({'type': 'status', 'content': f'Validating model output... validation {status_text}.'})}\n\n"
-                        elif node_name == "replanner":
-                            yield f"data: {json.dumps({'type': 'status', 'content': 'Adjusting parameters for refinement...'})}\n\n"
-                        elif node_name == "fast_response":
-                            yield f"data: {json.dumps({'type': 'status', 'content': 'Generating fast summary...'})}\n\n"
+
+                worker = threading.Thread(target=_run_graph, daemon=True)
+                worker.start()
+
+                while worker.is_alive() or not event_q.empty():
+                    try:
+                        kind, payload = event_q.get(timeout=0.35)
+                    except queue.Empty:
+                        continue
+                    if kind == "done":
+                        break
+                    if kind == "status":
+                        yield f"data: {json.dumps({'type': 'status', 'content': payload})}\n\n"
+                    elif kind == "hypothesis":
+                        inner = dict(payload)
+                        event_type = inner.pop("type", "hypothesis_event")
+                        yield f"data: {json.dumps({'type': 'hypothesis_progress', 'event_type': event_type, **inner})}\n\n"
+
+                worker.join(timeout=5)
+                set_progress_emitter(None)
+
+                if graph_error:
+                    raise graph_error[0]
+
+                result = result_holder.get("result", initial_state)
 
                 meta_chunk = {
                     "type": "metadata",

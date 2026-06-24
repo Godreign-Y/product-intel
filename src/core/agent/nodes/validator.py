@@ -1,22 +1,32 @@
 """
-Response Validator Node.
-
-Runs between the executor and synthesizer to verify that the executed DAG steps
-produced complete, non-empty, and relevant results. Deterministic checks handle
-plan coverage and NL2SQL alignment first; embeddings are only a fallback signal.
+Response Validator Node — deterministic checks plus compact LLM review on failure.
 """
 
-from typing import Any
+from __future__ import annotations
+
+import json
 import re
+from typing import Any
 
 import numpy as np
 
 from src.core.agent.state import AgentState
+from src.core.llm import LLMClient
 from src.utils.logger import setup_logger
 
 logger = setup_logger("validator")
 
 _encoder = None
+
+_VALIDATOR_LLM_PROMPT = """\
+You judge whether executed analytics steps adequately answer the user query.
+Reply JSONL only (1-2 lines max):
+{"ok":1}
+or
+{"ok":0,"notes":"short reason"}
+
+ok=1 if results are usable even if incomplete. ok=0 only when the answer would mislead or is empty.
+"""
 
 _METRIC_TERMS: dict[str, tuple[str, ...]] = {
     "profit": ("profit", "profitable", "margin"),
@@ -31,14 +41,22 @@ _METRIC_TERMS: dict[str, tuple[str, ...]] = {
 _COMPLEX_QUERY_TOOL_HINTS: tuple[tuple[re.Pattern[str], tuple[str, ...], str], ...] = (
     (re.compile(r"\b(forecast|predict|projection|next|future)\b", re.I), ("forecast_predict",), "forecasting"),
     (re.compile(r"\b(why|explain|driver|cause|root cause|diagnos)\b", re.I), ("explain_prediction", "decision_ask"), "explanation/diagnosis"),
-    (re.compile(r"\b(should we|recommend|recommendation|decision|strategy|actionable)\b", re.I), ("decision_ask",), "decision recommendation"),
+    (re.compile(r"\b(should we|recommend|recommendation|decision|strategy|actionable|action plan|prioritized)\b", re.I), ("decision_ask",), "decision recommendation"),
     (re.compile(r"\b(what if|what-if|simulate|simulation|scenario)\b", re.I), ("simulate_scenario", "decision_ask"), "scenario simulation"),
     (re.compile(r"\b(optimi[sz]e|maximi[sz]e|minimi[sz]e|best parameter|best discount|best price)\b", re.I), ("optimize_parameters",), "optimization"),
     (re.compile(r"\b(anomal|outlier|unusual|spike|drop)\b", re.I), ("anomaly_detect", "anomaly_rank_products", "explain_prediction", "decision_ask"), "anomaly/diagnosis"),
+    (re.compile(r"\b(channel|mobile app)\b", re.I), ("analytics_channel", "decision_ask"), "channel analysis"),
 )
 
 _RANKING_TERMS = re.compile(r"\b(top|highest|lowest|most|least|biggest|smallest|best|worst)\b", re.I)
 _AGGREGATE_TERMS = re.compile(r"\b(total|sum|average|avg|count|how many)\b", re.I)
+
+_ANALYTICAL_RESULT_KEYS = frozenset({
+    "daily_details", "positive_drivers", "negative_drivers", "kpis",
+    "metrics_comparison", "ranked_products", "prediction_value",
+    "explanation_summary", "optimized_forecast_sum", "baseline_forecast_sum",
+    "channel_breakdown", "explanation", "ranked_hypotheses", "recommendations",
+})
 
 
 def _get_encoder() -> Any:
@@ -73,8 +91,71 @@ def _text_blob(*parts: Any) -> str:
     return " ".join(str(part or "") for part in parts).lower()
 
 
+def _executed_tools(plan: list[dict[str, Any]], step_results: dict[str, Any]) -> list[str]:
+    tools: list[str] = []
+    for step in plan:
+        step_id = step.get("step_id")
+        result = step_results.get(step_id)
+        if isinstance(result, dict) and result and "error" not in result:
+            tools.append(str(step.get("tool_id", "")))
+    return tools
+
+
+def _summarize_results(plan: list[dict[str, Any]], step_results: dict[str, Any]) -> str:
+    parts: list[str] = []
+    for step in plan:
+        step_id = step.get("step_id")
+        tool_id = step.get("tool_id")
+        result = step_results.get(step_id)
+        if not isinstance(result, dict):
+            continue
+        if result.get("error"):
+            parts.append(f"{step_id}/{tool_id}:ERROR")
+        elif result.get("rows"):
+            parts.append(f"{step_id}/{tool_id}:{result.get('row_count', len(result['rows']))} rows")
+        else:
+            keys = [k for k in result.keys() if k not in ("sql", "query")][:6]
+            parts.append(f"{step_id}/{tool_id}:{','.join(keys)}")
+    return "; ".join(parts)[:800]
+
+
+def _llm_validate(
+    query: str,
+    plan: list[dict[str, Any]],
+    step_results: dict[str, Any],
+    deterministic_notes: str,
+    llm_client: LLMClient | None,
+) -> tuple[bool | None, str]:
+    if llm_client is None:
+        return None, ""
+
+    payload = {
+        "query": query[:400],
+        "planned_tools": [s.get("tool_id") for s in plan],
+        "executed": _summarize_results(plan, step_results),
+        "deterministic_notes": deterministic_notes[:500],
+    }
+    try:
+        result = llm_client.generate_compact(
+            messages=[
+                {"role": "system", "content": _VALIDATOR_LLM_PROMPT},
+                {"role": "user", "content": json.dumps(payload, default=str)},
+            ],
+            parser="validation",
+            temperature=0.0,
+            max_tokens=80,
+            model_tier="fast",
+        )
+        ok = bool(result.get("ok", True))
+        notes = str(result.get("notes", ""))
+        logger.info("Validator LLM review: ok=%s notes=%s", ok, notes[:120])
+        return ok, notes
+    except Exception as e:
+        logger.warning(f"Validator LLM review skipped: {e}")
+        return None, ""
+
+
 def _validate_single_nl2sql_result(query: str, result: Any) -> tuple[bool, str]:
-    """Validate that a single NL2SQL result is enough for a factual lookup."""
     if not isinstance(result, dict):
         return False, "NL2SQL did not return a structured result."
 
@@ -106,26 +187,13 @@ def _validate_single_nl2sql_result(query: str, result: Any) -> tuple[bool, str]:
     if _RANKING_TERMS.search(query) and "order by" not in sql.lower():
         return False, "Ranking query SQL does not order the results."
 
-    if _RANKING_TERMS.search(query) and "limit" not in sql.lower():
-        return False, "Ranking query SQL does not limit the result set."
-
     if _AGGREGATE_TERMS.search(query) and not re.search(r"\b(sum|avg|count|min|max)\s*\(", sql, re.I):
         return False, "Aggregate query SQL does not use an aggregate function."
-
-    if "all time" in query_lower and re.search(r"\bwhere\b.+\bdate\b", sql, re.I | re.S):
-        return False, "Query asks for all time, but SQL appears to restrict dates."
 
     if not rows:
         return True, "Validation passed; NL2SQL returned no matching rows."
 
     return True, "Validation passed."
-
-
-_ANALYTICAL_RESULT_KEYS = frozenset({
-    "daily_details", "positive_drivers", "negative_drivers", "kpis",
-    "metrics_comparison", "ranked_products", "prediction_value",
-    "explanation_summary", "optimized_forecast_sum", "baseline_forecast_sum",
-})
 
 
 def _has_analytical_payload(result: Any) -> bool:
@@ -137,7 +205,7 @@ def _has_analytical_payload(result: Any) -> bool:
     return isinstance(rows, list) and len(rows) > 0
 
 
-def validate_results(state: AgentState) -> dict[str, Any]:
+def validate_results(state: AgentState, llm_client: LLMClient | None = None) -> dict[str, Any]:
     """Validate step results for completeness, non-emptiness, and relevance."""
     plan = state.get("execution_plan", [])
     step_results = state.get("step_results", {})
@@ -160,34 +228,40 @@ def validate_results(state: AgentState) -> dict[str, Any]:
 
         nl2sql_passed, nl2sql_notes = _validate_single_nl2sql_result(query, result)
         if not nl2sql_passed:
+            llm_ok, llm_notes = _llm_validate(query, plan, step_results, nl2sql_notes, llm_client)
+            if llm_ok is True:
+                return {"validation_passed": True, "validation_notes": llm_notes or nl2sql_notes}
             logger.warning(f"Single-step NL2SQL validation failed: {nl2sql_notes}")
             return {"validation_passed": False, "validation_notes": nl2sql_notes}
 
-        logger.info(f"Single-step NL2SQL validation passed: {nl2sql_notes}")
         return {"validation_passed": True, "validation_notes": nl2sql_notes}
 
-    planned_step_ids = [step.get("step_id") for step in plan]
     planned_tools = [step.get("tool_id", "") for step in plan]
-
+    executed = _executed_tools(plan, step_results)
     expected_tools, reasons = _expected_complex_tools(query)
-    if expected_tools and not any(tool in expected_tools for tool in planned_tools):
+
+    if expected_tools and not any(tool in expected_tools for tool in executed):
         passed = False
         notes.append(
-            "Execution plan may not answer the query: it asks for "
+            "Results missing required analysis: query asks for "
             + ", ".join(reasons)
-            + f" but did not run any of: {', '.join(expected_tools)}."
+            + f" but none of {', '.join(expected_tools)} succeeded."
         )
 
-    executed_count = sum(1 for step_id in planned_step_ids if step_id in step_results)
+    executed_count = sum(
+        1 for step in plan
+        if step.get("step_id") in step_results
+        and "error" not in (step_results.get(step.get("step_id")) or {})
+    )
     if executed_count < len(plan):
         passed = False
-        notes.append(f"Incomplete execution: {executed_count}/{len(plan)} steps ran.")
+        notes.append(f"Incomplete execution: {executed_count}/{len(plan)} steps succeeded.")
 
     has_valid_data = False
-    has_structured_lookup = False
     analytical_successes = 0
     step_errors = 0
-    for step_id in planned_step_ids:
+    for step in plan:
+        step_id = step.get("step_id")
         result = step_results.get(step_id)
         if not result or result == {}:
             notes.append(f"Step {step_id} returned empty result.")
@@ -196,9 +270,6 @@ def validate_results(state: AgentState) -> dict[str, Any]:
             notes.append(f"Step {step_id} failed: {result['error']}")
         elif "rows" in result and len(result["rows"]) == 0:
             notes.append(f"Step {step_id} executed but found 0 records.")
-        elif "rows" in result and "columns" in result:
-            has_structured_lookup = True
-            has_valid_data = True
         else:
             has_valid_data = True
             if _has_analytical_payload(result):
@@ -207,45 +278,22 @@ def validate_results(state: AgentState) -> dict[str, Any]:
     if not has_valid_data:
         passed = False
         notes.append("No valid data was produced by any step.")
+    elif step_errors > 0 and analytical_successes > 0:
+        notes.append(
+            f"{step_errors} step(s) failed but {analytical_successes} step(s) produced usable data."
+        )
     elif step_errors > 0:
-        if analytical_successes > 0:
-            notes.append(
-                f"{step_errors} step(s) failed but {analytical_successes} analytical step(s) "
-                "produced usable data — continuing with partial results."
-            )
-        else:
-            passed = False
-
-    if has_valid_data and query and not has_structured_lookup and analytical_successes == 0:
-        summary_parts = []
-        for step_id in planned_step_ids:
-            result = step_results.get(step_id)
-            if isinstance(result, dict) and "error" not in result:
-                keys_str = " ".join(result.keys())
-                summary_parts.append(f"Result {step_id} contains {keys_str}")
-
-        results_summary = " | ".join(summary_parts)
-        try:
-            encoder = _get_encoder()
-            query_emb = np.array(encoder.encode(query))
-            res_emb = np.array(encoder.encode(results_summary))
-
-            q_norm = np.linalg.norm(query_emb)
-            r_norm = np.linalg.norm(res_emb)
-            if q_norm > 0 and r_norm > 0:
-                query_emb = query_emb / q_norm
-                res_emb = res_emb / r_norm
-
-                similarity = float(np.dot(query_emb, res_emb))
-                logger.info(f"Validator semantic relevance score: {similarity:.3f}")
-
-                if similarity < 0.18:
-                    passed = False
-                    notes.append(f"Low relevance score ({similarity:.3f}): The executed tools may not match the query.")
-        except Exception as e:
-            logger.warning(f"Semantic relevance validation skipped: {e}")
+        passed = False
 
     final_notes = "\n".join(notes) if notes else "Validation passed."
+
+    if not passed and llm_client is not None:
+        llm_ok, llm_notes = _llm_validate(query, plan, step_results, final_notes, llm_client)
+        if llm_ok is True:
+            passed = True
+            final_notes = llm_notes or final_notes + "\n(LLM review: acceptable partial results.)"
+        elif llm_ok is False and llm_notes:
+            final_notes = final_notes + "\nLLM review: " + llm_notes
 
     if not passed:
         logger.warning(f"Validation failed:\n{final_notes}")

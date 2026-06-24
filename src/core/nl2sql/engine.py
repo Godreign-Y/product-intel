@@ -14,7 +14,7 @@ from src.utils.logger import setup_logger
 
 logger = setup_logger("nl2sql_engine")
 
-_MAX_RETRIES = 1
+_MAX_RETRIES = 2
 
 
 class NL2SQLEngine:

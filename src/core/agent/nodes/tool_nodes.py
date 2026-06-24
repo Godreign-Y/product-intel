@@ -224,7 +224,7 @@ def _nl2sql_query(params: dict[str, Any], engines: dict[str, Any]) -> dict[str, 
             "row_count": result["row_count"],
             "truncated": result["truncated"],
         }
-    return nl2sql_engine.ask(query)
+    return nl2sql_engine.ask(str(query))
 
 
 def _repository_search(params: dict[str, Any], engines: dict[str, Any]) -> dict[str, Any]:

@@ -11,7 +11,7 @@ class TestValidateSQL:
             "SELECT product_id, SUM(revenue) AS total FROM product_performance "
             "GROUP BY product_id ORDER BY total DESC"
         )
-        assert "LIMIT 100" in sql.upper()
+        assert "LIMIT 10" in sql.upper()
 
     def test_preserves_existing_limit(self) -> None:
         sql = validate_sql(
@@ -23,7 +23,7 @@ class TestValidateSQL:
         sql = validate_sql(
             "SELECT * FROM product_performance LIMIT 500"
         )
-        assert "LIMIT 100" in sql.upper()
+        assert "LIMIT 25" in sql.upper()
 
     def test_rejects_insert(self) -> None:
         with pytest.raises(SQLValidationError, match="Only SELECT"):
@@ -46,10 +46,26 @@ class TestValidateSQL:
             "SELECT e.experiment_id, r.human_readable_text "
             "FROM experiments e JOIN reports r ON r.experiment_id = e.id"
         )
-        assert "LIMIT 100" in sql.upper()
+        assert "LIMIT 25" in sql.upper()
 
     def test_accepts_events_table(self) -> None:
         sql = validate_sql(
             "SELECT event_type, COUNT(*) AS cnt FROM events GROUP BY event_type"
         )
         assert "events" in sql.lower()
+
+    def test_repairs_group_by_violation(self) -> None:
+        broken = (
+            "SELECT date, SUM(revenue) AS total_revenue, marketing_spend, conversion_rate "
+            "FROM product_performance GROUP BY date ORDER BY date"
+        )
+        sql = validate_sql(broken)
+        assert "SUM(marketing_spend)" in sql or "SUM( marketing_spend )" in sql.replace(" ", "")
+        assert "AVG(conversion_rate)" in sql or "conversion_rate" in sql.lower()
+
+    def test_rejects_window_functions(self) -> None:
+        with pytest.raises(SQLValidationError, match="Window functions"):
+            validate_sql(
+                "SELECT product_id, LAG(SUM(revenue)) OVER (ORDER BY date) "
+                "FROM product_performance GROUP BY product_id"
+            )

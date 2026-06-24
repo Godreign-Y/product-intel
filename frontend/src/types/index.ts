@@ -45,6 +45,15 @@ export interface ChatVisualization {
   data?: ChartDataConfig;
 }
 
+export interface HypothesisProgressItem {
+  hypothesis_id: string;
+  title: string;
+  status: 'pending' | 'validating' | 'supported' | 'inconclusive' | 'contradicted';
+  verdict?: string;
+  confidence_band?: string;
+  overall_confidence?: number;
+}
+
 export interface Message {
   sender: 'user' | 'assistant';
   text: string;
@@ -53,6 +62,8 @@ export interface Message {
     raw?: any;
   };
   visualizations?: ChatVisualization[];
+  hypotheses?: HypothesisProgressItem[];
+  hypothesisNotices?: string[];
 }
 
 // Data Layer Responses

@@ -122,7 +122,7 @@ def classify_intent(state: AgentState, llm_client: LLMClient) -> dict[str, Any]:
             return fast
 
     matcher = get_intent_matcher()
-    intent, confidence = matcher.match_intent(query, threshold=0.65)
+    intent, confidence = matcher.match_intent(query, threshold=0.60)
 
     if intent != "unknown":
         logger.info(f"Embedding matched intent '{intent}' with confidence {confidence:.2f}")
@@ -144,13 +144,15 @@ def classify_intent(state: AgentState, llm_client: LLMClient) -> dict[str, Any]:
 
     logger.info(f"Embedding confidence low ({confidence:.2f}). Falling back to LLM intent classification.")
     try:
-        result = llm_client.generate_json(
+        result = llm_client.generate_compact(
             messages=[
                 {"role": "system", "content": INTENT_CLASSIFIER_SYSTEM_PROMPT},
                 {"role": "user", "content": query},
             ],
+            parser="intent",
             temperature=0.05,
-            max_tokens=300,
+            max_tokens=120,
+            model_tier="fast",
         )
         intent = result.get("intent", "clarification_needed")
         confidence = float(result.get("confidence", 0.5))

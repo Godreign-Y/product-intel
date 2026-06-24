@@ -11,17 +11,28 @@ class SensitivityEngine:
     def __init__(self, forecaster: ProductForecaster):
         self.forecaster = forecaster
 
+    def _aggregate_metric(self, forecast_df: pd.DataFrame, metric: str) -> float:
+        if metric not in forecast_df.columns:
+            metric = "revenue"
+        if metric in ("conversion_rate", "retention_rate"):
+            return float(forecast_df[metric].mean())
+        return float(forecast_df[metric].sum())
+
     def calculate_sensitivity(
         self,
         historical_df: pd.DataFrame,
         product_id: str,
-        horizon_days: int = 30
+        horizon_days: int = 30,
+        target_metric: str = "revenue",
     ) -> Dict[str, Any]:
         """
         Estimates the sensitivity (elasticity, expected absolute impact, and statistical confidence)
-        of cumulative predicted Revenue to changes in: Marketing, Discount, Shipping, Price, Inventory, and Retention (Return).
-        First tries to pull pre-computed elasticity profiles from history patterns, falling back to forecaster perturbations.
+        of predicted target_metric to changes in marketing, discount, shipping, price, inventory, and retention.
+        First tries pre-computed elasticity profiles from history patterns, falling back to forecaster perturbations.
         """
+        target_metric = (target_metric or "revenue").lower()
+        if target_metric not in ("revenue", "profit", "orders", "conversion_rate", "retention_rate"):
+            target_metric = "revenue"
         # Try to retrieve pre-computed elasticity profiles from History DB
         precomputed_results = {}
         try:
@@ -52,8 +63,11 @@ class SensitivityEngine:
                         # baseline revenue as scaling reference
                         prod_data = historical_df[historical_df["product_id"] == product_id].copy()
                         if not prod_data.empty:
-                            last_rev = float(prod_data.iloc[-1]["revenue"])
-                            expected_impact = coef * last_rev * horizon_days * 0.10 # scaled for +10% driver shift
+                            if target_metric in prod_data.columns:
+                                scale_ref = float(prod_data.iloc[-1][target_metric])
+                            else:
+                                scale_ref = float(prod_data.iloc[-1]["revenue"])
+                            expected_impact = coef * scale_ref * horizon_days * 0.10
                         else:
                             expected_impact = coef * 100.0
                             
@@ -95,10 +109,10 @@ class SensitivityEngine:
             product_id=product_id,
             horizon_days=horizon_days
         )
-        base_revenue_sum = float(baseline_forecast["revenue"].sum())
+        base_metric_agg = self._aggregate_metric(baseline_forecast, target_metric)
         
-        # 3. Calculate cumulative standard error of the revenue forecast
-        step_stds = self.forecaster.step_residuals.get("revenue", [])
+        # 3. Calculate cumulative standard error of the target metric forecast
+        step_stds = self.forecaster.step_residuals.get(target_metric, self.forecaster.step_residuals.get("revenue", []))
         if step_stds:
             # Cumulative variance sum of step errors
             var_sum = sum(step_stds[i]**2 if i < len(step_stds) else step_stds[-1]**2 for i in range(horizon_days))
@@ -108,7 +122,7 @@ class SensitivityEngine:
             
         # Fallback if standard error is zero
         if se_revenue <= 0.0:
-            se_revenue = base_revenue_sum * 0.05 + 1.0  # 5% of base revenue as proxy std error
+            se_revenue = base_metric_agg * 0.05 + 1.0
             
         def cast_to_dtype(col_name: str, value: float) -> Any:
             col_dtype = historical_df[col_name].dtype
@@ -161,14 +175,12 @@ class SensitivityEngine:
                 horizon_days=horizon_days,
                 current_features=features_override
             )
-            perturbed_revenue_sum = float(perturbed_forecast["revenue"].sum())
+            perturbed_metric_agg = self._aggregate_metric(perturbed_forecast, target_metric)
             
-            # Calculate elasticity and absolute impact
-            expected_impact = perturbed_revenue_sum - base_revenue_sum
-            pct_change_revenue = (expected_impact / (base_revenue_sum + 1e-5)) * 100.0
+            expected_impact = perturbed_metric_agg - base_metric_agg
+            pct_change = (expected_impact / (base_metric_agg + 1e-5)) * 100.0
             
-            # Elasticity score: % change in revenue per 10% change in driver
-            elasticity_score = pct_change_revenue / 10.0
+            elasticity_score = pct_change / 10.0
             
             # Determine confidence rating based on se_revenue
             abs_impact = abs(expected_impact)

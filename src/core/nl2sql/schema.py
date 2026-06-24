@@ -116,9 +116,10 @@ def get_schema_prompt(dialect: str = "postgresql", date_context: str = "") -> st
     lines = [
         f"Database dialect: {dialect}",
         "Rules: SELECT-only queries. Use only the tables and columns listed below.",
-        "Do NOT query JSON columns. Always include LIMIT (max 100).",
+        "Do NOT query JSON columns. Default LIMIT 25; ranking queries LIMIT 10.",
         "CRITICAL: There is NO column named total_revenue, total_profit, or total_orders.",
         "Always aggregate raw columns: SUM(revenue) AS total_revenue, SUM(profit) AS total_profit, SUM(orders) AS total_orders.",
+        "GROUP BY rule (PostgreSQL): if you GROUP BY date, every other selected column must use SUM(), AVG(), COUNT(), MIN(), or MAX().",
         "Only use column names exactly as listed below — never invent column names.",
         "For monthly ranges use: date >= 'YYYY-MM-01' AND date < first day of next month.",
     ]

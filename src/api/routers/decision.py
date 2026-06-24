@@ -36,7 +36,8 @@ def get_decision_manager(db: Session = Depends(get_db)) -> DecisionManager:
         forecaster=forecaster,
         sensitivity_engine=sensitivity,
         simulator=simulator,
-        history_manager=history_mgr
+        history_manager=history_mgr,
+        explainer=AppState.explainer,
     )
 
 @router.post("/ask", response_model=DecisionResponse)

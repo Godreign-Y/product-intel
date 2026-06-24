@@ -1,8 +1,7 @@
 """
 Replanner Node — contextual re-planning after a validation failure.
 
-Uses a fast deterministic patch for common wiring failures before falling
-back to a compact LLM replan.
+Order: deterministic wiring patch → LLM replan → heuristic template fallback.
 """
 
 from __future__ import annotations
@@ -13,7 +12,10 @@ from typing import Any
 
 from src.core.agent.state import AgentState
 from src.core.agent.nodes.dag_planner import normalize_dag
-from src.core.agent.registry.capability_registry import CAPABILITY_REGISTRY
+from src.core.agent.nodes.heuristic_planner import (
+    build_heuristic_dag,
+    is_substantive_heuristic_plan,
+)
 from src.core.llm import LLMClient
 from src.utils.logger import setup_logger
 
@@ -39,22 +41,33 @@ Rules:
 - Put explicit product_id/date from the user query directly in params — do NOT wire date from NL2SQL unless that step SELECTs date.
 - For explain_prediction after forecast_predict, wire date from the forecast step or put the latest data date in params.
 - Never invent placeholder values.
+- You can generate multiple steps if needed.
+- For diagnose/recommend/channel queries use analytics_channel + analytics_trend + decision_ask — NOT nl2sql alone.
 
-Output ONLY JSON:
-{{
-  "reasoning": "...",
-  "dag": [{{"step_id": "s1", "tool_id": "...", "params": {{}}, "input_from": {{}}, "depends_on": []}}]
-}}
+Output JSONL only:
+{{"k":"r","v":"..."}}
+{{"k":"s","i":"s1","t":"tool_id","p":{{}},"f":{{}},"d":[]}}
 """
 
 
-def _compact_tool_list() -> str:
-    lines: list[str] = []
-    for tool_id, spec in CAPABILITY_REGISTRY.items():
-        schema = spec.get("input_schema", {})
-        required = [k for k, v in schema.items() if v.get("required")]
-        lines.append(f"- {tool_id}: {spec.get('description', '')[:120]} | required: {required}")
-    return "\n".join(lines)
+def try_heuristic_replan(state: AgentState) -> dict[str, Any] | None:
+    """Last-resort template plan when the LLM replanner fails or returns nothing."""
+    query = state.get("user_query", "")
+    dag = build_heuristic_dag(
+        query,
+        state.get("extracted_params") or {},
+        allow_nl2sql_only=False,
+    )
+    if not is_substantive_heuristic_plan(dag):
+        return None
+
+    logger.info("Heuristic replanner fallback (template match).")
+    return {
+        "execution_plan": dag,
+        "dag_source": "heuristic_retry",
+        "retry_count": state.get("retry_count", 0) + 1,
+        "validation_passed": False,
+    }
 
 
 def try_deterministic_replan(state: AgentState) -> dict[str, Any] | None:
@@ -103,20 +116,20 @@ def replan_dag(state: AgentState, llm_client: LLMClient) -> dict[str, Any]:
     notes = state.get("validation_notes", "")
     previous_dag = json.dumps(state.get("execution_plan", []), indent=2)
 
-    system_prompt = _REPLANNER_SYSTEM_PROMPT.format(
-        query=query,
-        notes=notes,
-        previous_dag=previous_dag,
-    )
-
     try:
-        result = llm_client.generate_json(
+        system_prompt = _REPLANNER_SYSTEM_PROMPT.format(
+            query=query,
+            notes=notes,
+            previous_dag=previous_dag,
+        )
+        result = llm_client.generate_compact(
             messages=[
                 {"role": "system", "content": system_prompt},
-                {"role": "user", "content": "Generate the corrected DAG."},
+                {"role": "user", "content": "Generate corrected DAG as JSONL."},
             ],
+            parser="dag",
             temperature=0.1,
-            max_tokens=600,
+            max_tokens=400,
             model_tier="fast",
         )
         new_dag = normalize_dag(
@@ -128,16 +141,26 @@ def replan_dag(state: AgentState, llm_client: LLMClient) -> dict[str, Any]:
         logger.info(f"Replanner generated new DAG with {len(new_dag)} steps.")
         logger.info(f"Replanner Reasoning: {reasoning}")
 
-        return {
-            "execution_plan": new_dag,
-            "dag_source": "dynamic_retry",
-            "retry_count": retry_count + 1,
-            "validation_passed": False,
-        }
+        if new_dag:
+            return {
+                "execution_plan": new_dag,
+                "dag_source": "dynamic_retry",
+                "retry_count": retry_count + 1,
+                "validation_passed": False,
+            }
+
+        logger.warning("LLM replanner returned an empty DAG. Trying heuristic fallback.")
 
     except Exception as e:
-        logger.error(f"Replanner failed: {e}. Forcing pass to synthesizer.")
-        return {
-            "validation_passed": True,
-            "validation_notes": notes + f"\nReplanner failed to generate fallback: {e}",
-        }
+        logger.error(f"Replanner LLM failed: {e}. Trying heuristic fallback.")
+
+    heuristic = try_heuristic_replan(state)
+    if heuristic:
+        logger.info(f"Heuristic replan:\n{json.dumps(heuristic['execution_plan'], indent=2)}")
+        return heuristic
+
+    logger.error("Replanner and heuristic fallback both failed. Forcing pass to synthesizer.")
+    return {
+        "validation_passed": True,
+        "validation_notes": notes + "\nReplanner could not produce a corrected plan.",
+    }

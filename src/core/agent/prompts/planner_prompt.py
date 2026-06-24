@@ -131,18 +131,15 @@ Example 3: "Is revenue anomalous today? Why?"
 }}
 
 ## OUTPUT FORMAT
-Respond with ONLY a JSON object. No text before or after.
-{{
-  "reasoning": "<brief 1-sentence explanation>",
-  "clarification": "<Optional: ask user for clarification if missing required params>",
-  "dag": [
-    {{
-      "step_id": "s1",
-      "tool_id": "<tool_id>",
-      "params": {{ <parameters> }},
-      "input_from": {{}},
-      "depends_on": []
-    }}
-  ]
-}}
+Respond with ONLY JSONL (one small JSON per line). No markdown. Keys:
+- {{"k":"r","v":"<brief reasoning>"}}
+- {{"k":"s","i":"s1","t":"<tool_id>","p":{{params}},"f":{{input_from}},"d":["s0"]}}
+For decision/strategy queries end with decision_ask. For channel questions use analytics_channel.
+For multi-week trends use analytics_trend. Use nl2sql_query only for simple factual lookups.
+
+Example lines for "diagnose mobile channel underperformance and recommend action plan":
+{{"k":"r","v":"Channel trend then strategic recommendation"}}
+{{"k":"s","i":"s1","t":"analytics_channel","p":{{}},"f":{{}},"d":[]}}
+{{"k":"s","i":"s2","t":"analytics_trend","p":{{"metric":"revenue"}},"f":{{}},"d":[]}}
+{{"k":"s","i":"s3","t":"decision_ask","p":{{"query":"<user query>"}},"f":{{}},"d":["s1","s2"]}}
 """

@@ -480,6 +480,7 @@ class HistoryManager:
                 })
         except Exception as e:
             logger.error(f"Fallback python semantic search failed: {e}")
+            self.db.rollback()
             
         return results
 

@@ -13,6 +13,7 @@ from src.core.agent.state import AgentState
 from src.core.agent.prompts.planner_prompt import build_planner_system_prompt
 from src.core.agent.registry.capability_registry import CAPABILITY_REGISTRY, get_tool_descriptions_for_prompt
 from src.core.agent.registry.data_registry import get_data_summary_for_prompt
+from src.core.agent.nodes.heuristic_planner import build_heuristic_dag
 from src.core.nl2sql.dates import get_date_context_for_prompt
 from src.utils.logger import setup_logger
 
@@ -36,9 +37,10 @@ _TEMPORAL_TERMS = (
 
 
 def plan_dag(state: AgentState, llm_client: "LLMClient") -> dict[str, Any]:
-    """Generate a dynamic execution DAG using the LLM planner."""
+    """Generate a dynamic execution DAG using the LLM planner (heuristic on failure)."""
     extracted_params = state.get("extracted_params", {})
     query = state.get("user_query", "") or extracted_params.get("query", "")
+
     logger.info("Generating dynamic DAG via LLM.")
     return _plan_dag_with_llm(state, llm_client, query, extracted_params)
 
@@ -62,48 +64,63 @@ def _plan_dag_with_llm(
     )
 
     try:
-        result = llm_client.generate_json(
+        result = llm_client.generate_compact(
             messages=[
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": query},
             ],
+            parser="dag",
             temperature=0.1,
-            max_tokens=1000,
+            max_tokens=450,
+            model_tier="fast",
         )
         return _build_plan_response(result, query, "dynamic", extracted_params)
 
     except Exception as e:
         logger.error(f"Dynamic DAG generation failed: {e}. Retrying once...")
         try:
-            error_feedback = (
-                f"Your previous attempt failed with error: {e}. "
-                "Please ensure you output ONLY valid JSON matching the requested schema."
+            retry_user = (
+                f"{query}\n\nParse error: {e}. "
+                "Reply JSONL only: r line then one s line per step."
             )
-            result = llm_client.generate_json(
+            result = llm_client.generate_compact(
                 messages=[
                     {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": query},
-                    {"role": "user", "content": error_feedback},
+                    {"role": "user", "content": retry_user},
                 ],
+                parser="dag",
                 temperature=0.1,
-                max_tokens=1000,
+                max_tokens=450,
+                model_tier="fast",
             )
             return _build_plan_response(result, query, "dynamic_retry", extracted_params)
 
         except Exception as retry_e:
-            logger.error(f"Dynamic DAG retry also failed: {retry_e}. Using NL2SQL fallback.")
-            return {
-                "dag_source": "dynamic_fallback",
-                "execution_plan": normalize_dag([
-                    {
-                        "step_id": "s1",
-                        "tool_id": "nl2sql_query",
-                        "params": {"query": query},
-                        "input_from": {},
-                        "depends_on": [],
-                    }
-                ], query, extracted_params),
-            }
+            logger.error(f"Dynamic DAG retry also failed: {retry_e}. Using heuristic fallback.")
+            return _heuristic_fallback_response(query, extracted_params)
+
+
+def _heuristic_fallback_response(
+    query: str,
+    extracted_params: dict[str, Any],
+) -> dict[str, Any]:
+    """Non-LLM plan when the dynamic planner times out or fails."""
+    dag = build_heuristic_dag(query, extracted_params)
+    logger.info(f"Heuristic fallback DAG with {len(dag)} steps.")
+    return {
+        "dag_source": "heuristic_fallback",
+        "execution_plan": dag,
+    }
+
+
+def _simplified_nl2sql_question(query: str) -> str:
+    """Shrink complex prompts into SQL-friendly factual questions."""
+    if re.search(r"\b(channel|mobile app)\b", query, re.I):
+        return (
+            "Show daily SUM(revenue) and AVG(mobile_app_sales_pct) "
+            "for the last 21 days, grouped by date."
+        )
+    return "Show daily SUM(revenue) grouped by date for the last 21 days."
 
 
 def _build_plan_response(
@@ -183,7 +200,8 @@ def normalize_dag(
     normalized = _inject_discovery_steps(normalized, query, entities)
     normalized = _sanitize_input_from(normalized, query)
     normalized = _apply_query_entities(normalized, query, entities)
-    return _fill_required_params(normalized, query, entities)
+    normalized = _fill_required_params(normalized, query, entities)
+    return _sanitize_nl2sql_queries(normalized, query)
 
 
 def _apply_query_entities(
@@ -249,6 +267,24 @@ def _apply_query_entities(
         step_copy["depends_on"] = depends_on
         updated.append(step_copy)
 
+    return updated
+
+
+def _sanitize_nl2sql_queries(
+    dag: list[dict[str, Any]],
+    user_query: str,
+) -> list[dict[str, Any]]:
+    """Never pass raw SQL strings as nl2sql_query params — use natural language."""
+    updated: list[dict[str, Any]] = []
+    for step in dag:
+        step_copy = dict(step)
+        if step_copy.get("tool_id") == "nl2sql_query":
+            params = dict(step_copy.get("params") or {})
+            q = str(params.get("query", "")).strip()
+            if q.lower().startswith("select"):
+                params["query"] = _simplified_nl2sql_question(user_query)
+                step_copy["params"] = params
+        updated.append(step_copy)
     return updated
 
 

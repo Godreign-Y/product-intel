@@ -89,4 +89,114 @@ STANDARD_DAGS: dict[str, list[dict[str, Any]]] = {
     "anomaly_check": [
         {"step_id": "s1", "tool_id": "anomaly_detect", "params": {"product_id": "P001", "kpi": "revenue"}, "depends_on": []},
     ],
+
+    "channel_trend_decision": [
+        {"step_id": "s1", "tool_id": "analytics_channel", "params": {}, "input_from": {}, "depends_on": []},
+        {"step_id": "s2", "tool_id": "analytics_trend", "params": {"metric": "revenue"}, "input_from": {}, "depends_on": []},
+        {
+            "step_id": "s3",
+            "tool_id": "decision_ask",
+            "params": {},
+            "input_from": {},
+            "depends_on": ["s1", "s2"],
+        },
+    ],
+
+    "forecast_explain_chain": [
+        {"step_id": "s1", "tool_id": "forecast_predict", "params": {"horizon_days": 30}, "input_from": {}, "depends_on": []},
+        {
+            "step_id": "s2",
+            "tool_id": "explain_prediction",
+            "params": {"target_metric": "revenue"},
+            "input_from": {},
+            "depends_on": ["s1"],
+        },
+    ],
+
+    "forecast_explain_decision": [
+        {"step_id": "s1", "tool_id": "forecast_predict", "params": {"horizon_days": 30}, "input_from": {}, "depends_on": []},
+        {
+            "step_id": "s2",
+            "tool_id": "explain_prediction",
+            "params": {"target_metric": "revenue"},
+            "input_from": {},
+            "depends_on": ["s1"],
+        },
+        {
+            "step_id": "s3",
+            "tool_id": "decision_ask",
+            "params": {},
+            "input_from": {},
+            "depends_on": ["s1", "s2"],
+        },
+    ],
+
+    "anomaly_explain_chain": [
+        {
+            "step_id": "s1",
+            "tool_id": "anomaly_rank_products",
+            "params": {"kpi": "revenue"},
+            "input_from": {},
+            "depends_on": [],
+        },
+        {
+            "step_id": "s2",
+            "tool_id": "explain_prediction",
+            "params": {"target_metric": "revenue"},
+            "input_from": {"product_id": {"step": "s1", "field": "product_id"}, "date": {"step": "s1", "field": "date"}},
+            "depends_on": ["s1"],
+        },
+    ],
+
+    "anomaly_explain_decision": [
+        {
+            "step_id": "s1",
+            "tool_id": "anomaly_rank_products",
+            "params": {"kpi": "revenue"},
+            "input_from": {},
+            "depends_on": [],
+        },
+        {
+            "step_id": "s2",
+            "tool_id": "explain_prediction",
+            "params": {"target_metric": "revenue"},
+            "input_from": {"product_id": {"step": "s1", "field": "product_id"}, "date": {"step": "s1", "field": "date"}},
+            "depends_on": ["s1"],
+        },
+        {
+            "step_id": "s3",
+            "tool_id": "decision_ask",
+            "params": {},
+            "input_from": {},
+            "depends_on": ["s1", "s2"],
+        },
+    ],
+
+    "simulate_decision": [
+        {"step_id": "s1", "tool_id": "simulate_scenario", "params": {"horizon_days": 30}, "input_from": {}, "depends_on": []},
+        {
+            "step_id": "s2",
+            "tool_id": "decision_ask",
+            "params": {},
+            "input_from": {},
+            "depends_on": ["s1"],
+        },
+    ],
+
+    "optimize_decision": [
+        {
+            "step_id": "s1",
+            "tool_id": "optimize_parameters",
+            "params": {"target_metric": "revenue", "horizon_days": 30},
+            "input_from": {},
+            "depends_on": [],
+        },
+        {
+            "step_id": "s2",
+            "tool_id": "decision_ask",
+            "params": {},
+            "input_from": {},
+            "depends_on": ["s1"],
+        },
+    ],
 }

@@ -1,5 +1,4 @@
 import datetime
-import concurrent.futures
 from sqlalchemy.orm import Session
 from typing import Dict, Any, List, Optional
 
@@ -57,7 +56,13 @@ class DecisionManager:
             llm_client=llm_client,
         )
         self.evidence_retriever = EvidenceRetriever(db, history_manager)
-        self.validator = ValidationEngine(df_historical, forecaster, sensitivity_engine, simulator)
+        self.validator = ValidationEngine(
+            df_historical,
+            forecaster,
+            sensitivity_engine,
+            simulator,
+            explainer=explainer,
+        )
         self.scorer = ConfidenceScorer()
         self.ranker = HypothesisRanker()
         self.rec_engine = RecommendationEngine()
@@ -163,11 +168,23 @@ class DecisionManager:
         
         # 2. Generate Candidate Hypotheses
         logger.info("Step 2: Generating Candidate Hypotheses.")
+        from src.core.decision.progress import emit_progress
+        emit_progress({"type": "hypothesis_batch_start", "message": "Generating candidate hypotheses…"})
         candidates = self.hypo_generator.generate_candidates(context_data)
         logger.info(f"Generated {len(candidates)} candidate hypotheses.")
+        for cand in candidates:
+            cand["hypothesis_id"] = f"HYP_{db_context.id}_{cand['hypothesis_id']}"
+        for cand in candidates:
+            emit_progress({
+                "type": "hypothesis_candidate",
+                "hypothesis_id": cand["hypothesis_id"],
+                "title": cand.get("title"),
+                "status": "pending",
+            })
         
         # Pre-compute product data length for data quality factor
         product_df_len = self._get_product_df_len(product_id)
+        self.validator.clear_caches()
 
         # Write Candidates & perform checks
         db_hypos = []
@@ -175,40 +192,49 @@ class DecisionManager:
         confidence_scores = {}
         historical_evidences = {}
         
-        logger.info("Step 3: Running parallel validations and evidence lookup for hypotheses.")
+        logger.info("Step 3: Running validations and evidence lookup for hypotheses.")
+        driver_map = {
+            "discount_pct": "discount",
+            "shipping_fee": "shipping",
+            "avg_selling_price": "price",
+            "marketing_spend": "marketing",
+        }
         for idx, cand in enumerate(candidates):
-            # Ensure hypothesis_id is globally unique to satisfy DB constraint
-            unique_id = f"HYP_{db_context.id}_{cand['hypothesis_id']}"
-            cand["hypothesis_id"] = unique_id
+            unique_id = cand["hypothesis_id"]
             logger.info(f"Processing candidate {idx+1}/{len(candidates)}: ID={unique_id}, Title='{cand['title']}'")
+            emit_progress({
+                "type": "hypothesis_validating",
+                "hypothesis_id": unique_id,
+                "title": cand["title"],
+                "index": idx + 1,
+                "total": len(candidates),
+            })
             
-            # Run evidence retrieval and validation in parallel (they are independent)
-            logger.debug("Dispatching parallel evidence retriever and scientific validator thread executor.")
-            with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
-                f_evidence = executor.submit(
-                    self.evidence_retriever.retrieve_historical_evidence,
+            logger.debug("Retrieving historical evidence then running validation suite.")
+            try:
+                evidence = self.evidence_retriever.retrieve_historical_evidence(
                     cand["title"], cand["affected_kpis"]
                 )
-                f_validation = executor.submit(
-                    self.validator.validate, cand, product_id, query_pcts
-                )
-                evidence = f_evidence.result()
-                validation = f_validation.result()
+            except Exception as ev_err:
+                self.db.rollback()
+                logger.warning(f"Evidence lookup failed for {unique_id}: {ev_err}")
+                evidence = []
+            validation = self.validator.validate(
+                cand,
+                product_id,
+                query_pcts,
+                historical_evidence=evidence,
+                run_shap=True,
+            )
 
             logger.debug(f"Retrieved {len(evidence)} evidence points for candidate {unique_id}")
             logger.debug(f"Validation completed for candidate {unique_id}")
             historical_evidences[cand["hypothesis_id"]] = evidence
             validation_results[cand["hypothesis_id"]] = validation
             
-            # Map driver_variable to driver_keyword for confidence scorer
-            driver_var = cand.get("driver_variable", "discount_pct")
-            driver_map = {
-                "discount_pct": "discount",
-                "shipping_fee": "shipping",
-                "avg_selling_price": "price",
-                "marketing_spend": "marketing"
-            }
-            driver_keyword = driver_map.get(driver_var, "discount")
+            driver_keyword = validation.get("driver_key") or driver_map.get(
+                cand.get("driver_variable", "discount_pct"), "discount"
+            )
 
             # Compute confidence score (with data quality factor)
             logger.debug(f"Computing confidence score for candidate {unique_id}")
@@ -218,6 +244,18 @@ class DecisionManager:
                 driver_keyword=driver_keyword
             )
             confidence_scores[cand["hypothesis_id"]] = score
+
+            adjudication = validation.get("adjudication", {})
+            verdict = adjudication.get("verdict", "inconclusive")
+            emit_progress({
+                "type": "hypothesis_validated",
+                "hypothesis_id": unique_id,
+                "title": cand["title"],
+                "verdict": verdict,
+                "confidence_band": adjudication.get("confidence_band"),
+                "overall_confidence": score.get("overall_confidence"),
+                "status": verdict,
+            })
             
             # Save Hypothesis to DB
             logger.debug(f"Writing Hypothesis '{unique_id}' record to database.")
@@ -243,7 +281,13 @@ class DecisionManager:
                 forecast_sim_delta=validation["forecast_simulation"],
                 sensitivity_elasticity=validation["sensitivity"],
                 causal_estimates=validation["causal"],
-                segment_consistency={"product_id": product_id}
+                segment_consistency={
+                    "product_id": product_id,
+                    "adjudication": validation.get("adjudication"),
+                    "multi_kpi_coherence": validation.get("multi_kpi_coherence"),
+                    "plausibility": validation.get("plausibility"),
+                    "forecast_by_kpi": validation.get("forecast_by_kpi"),
+                },
             )
             self.db.add(db_val)
             
@@ -270,6 +314,18 @@ class DecisionManager:
         # 3. Prioritize & Rank Hypotheses
         logger.info("Step 4: Prioritizing and ranking candidate hypotheses.")
         ranked_items = self.ranker.rank_hypotheses(candidates, validation_results, confidence_scores)
+        emit_progress({
+            "type": "hypothesis_batch_complete",
+            "total": len(ranked_items),
+            "supported": sum(
+                1 for item in ranked_items
+                if item.get("validation", {}).get("adjudication", {}).get("verdict") == "supported"
+            ),
+            "rejected": sum(
+                1 for item in ranked_items
+                if item.get("validation", {}).get("adjudication", {}).get("verdict") == "contradicted"
+            ),
+        })
         
         # 4. Generate Recommendations & Action Steps (with context revenue for ROI normalization)
         logger.info("Step 5: Formulating tactical recommendations.")
